@@ -48,13 +48,34 @@ Advisor: Hongyu Zhu
 
 %%%%%%%%% INTRODUCTION
 \section{Introduction}
-Deep neural networks (DNNs) have a history dating back over half a century, with Donald Hebb's \enquote*{Hebbian Learning Rule} laying the foundations for modern techniques \cite{dnn_history}. In the proceeding years this approach was developed and improved, with notable developments by Rosenblatt (the first perceptron), Werbos (backpropagation), Jordan (Recurrent Neural Network), Hochreiter \& Schmidhuber (LSTM), and Hinton (Deep Belief Networks) \cite{dnn_history}. While this theoretical progression was occuring, the computational machinery required to actually implement these models was non-existent. In the last decade, however, the development of high-performance computing hardware enabled these once-theoretical DNNs to be implemented in practice. \par 
+Deep neural networks (DNNs) have a history dating back over half a century, with Donald Hebb's \enquote*{Hebbian Learning Rule} laying the foundations for modern techniques \cite{dnn_history}. In the proceeding years this approach was developed and improved, with notable developments by Rosenblatt (the first perceptron), Werbos (backpropagation), Jordan (Recurrent Neural Network), Hochreiter \& Schmidhuber (LSTM), and Hinton (Deep Belief Networks) \cite{dnn_history}. While this theoretical progression was occurring, the computational machinery required to actually implement these models was non-existent. In the last decade, the development of high-performance computing hardware - especially GPUs - has enabled many of these once-theoretical DNNs to be implemented in practice. Still, however, there remain bottlenecks which constrain implementations and therefore deeper insight into underlying resource usage is vital for further advancements in the field. \par 
+
+%%%%%%%%% INTRODUCTION::Neural Networks
+\cvprsubsection{Neural Networks}
+While there are many types of neural networks, they all involve the transformation of some input data (for example the pixels of an image) into meaningful output - in fact, a neural network is nothing more than a composition of mathematical functions. The function modeled by a neural network is special, however, because it can model \textit{any} mathematical function with arbitrary accuracy (provided that the network has at least two layers) \cite{dnn_history}. It is because of this property that neural networks have been labeled \enquote*{universal approximators}. Loosely, this means that if there are useful patterns in the world - whether they correspond to user preferences in movies based on past movies they have watched, or classification of images based on their pixel composition, or even cardiac arrest likelihood based on heart rate - a sufficiently-trained neural network can identify it. The effectiveness of a neural network in identifying these patterns depends primarily on two things: the amount of data it has been trained with, and its specific topology.
+\par
+
+The neural network in Figure \ref{fig:feedforwardNN} shows the basic building blocks from which modern neural networks emerge. The green nodes represent the input data to the network, which is what the network must use to make meaningful predictions. Perhaps, the input vector $[x_1,x_2,x_3,x_4]^T$ might represent a four-word sentence.\par
+
+The gray lines in the diagram represent \textit{weights}, or the scaling coefficients from one node to the next. These weights together create linear combinations of the outputs of one layer into the nodes of the next layer. \par 
+
+The purple nodes represent \textit{neurons}, which take a weighted sum of input nodes and produce a scalar-valued output. Each neuron is a nonlinear function; the nonlinearity is important here because without it the universal approximator guarantees no longer apply. For example, each neuron might be the ReLU function $f(x)=max(x,0)$ which clips all negative values. Notice how there are two layers of purple nodes here - this denotes that the model has two hidden layers. There can be an arbitrary number of hidden layers in a network. \par 
+
+Finally, the red nodes are the \textit{outputs}, which are the network's predictions based on the provided input data. In this example, each output node might be the one-hot-encoded representation of who likely wrote this sentence. If $y_1$ is associated with Alice, $y_2$ with Bob, and $y_3$ with Charlie, then the output vector $[y_1,y_2,y_3]^T = [0.983,0.217,0.015]^T$ indicates that it was likely Alice's sentence.
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.4\textwidth,height=8cm]{neural_network_machinelearningmastery.png}
+\captionsetup{width=0.7\linewidth}
+\caption{ Topology of a fully-connected feedforward neural network \cite{feedforward_pic}}
+\label{fig:feedforwardNN}
+\end{figure}
 
 %%%%%%%%% INTRODUCTION::GPUs and their application to DNNs
 \cvprsubsection{GPUs and their application to DNNs}
 Graphics Processing Units (GPUs) are at the center of recent machine learning breakthroughs. The computational workload for DNNs happens during \textit{training} (where DNNs are iteratively improved, e.g. to better-recognize faces or understand human speech) and \textit{inference}  (where already-trained DNNs are applied to the tasks they were trained for). Both training and inference are, in essence, complicated sequences of matrix operations; as it turns out, GPUs can perform these computations orders of magnitude faster than CPUs due to the parallelism inherent in their design. Figure \ref{fig:turing} shows the architecture of a modern GPU, which contains numerous computational cores (green).
 
-\begin{figure}[t]
+\begin{figure}[ht]
 \centering
 \includegraphics[width=0.7\textwidth]{Turing_TU104_chip_diagram.png}
 \captionsetup{width=0.7\linewidth}
@@ -62,7 +83,7 @@ Graphics Processing Units (GPUs) are at the center of recent machine learning br
 \label{fig:turing}
 \end{figure}
 
-To understand the value that GPUs bring in terms of computational parallelism, suppose that a program is scaling a matrix:
+To understand the value that GPUs bring in terms of computational parallelism, suppose that a program is scaling a matrix as follows:
 \[
 3
 \begin{bmatrix}
@@ -78,7 +99,7 @@ To understand the value that GPUs bring in terms of computational parallelism, s
 This computation can be distributed over 4 GPU cores, which would each scale one element of the matrix. The program can then accumulate the results of the four operations, and store the results either by overwriting the old matrix or by creating a new one in memory. While this is a small example, the same principles can be applied to matrices with thousands of elements - as the dimensions increase, so does the benefit of using GPUs. 
 \par
 
-NVIDIA conveniently provides the functionality distribute a program's workload across GPU cores in the form of a rich C++ API \cite{cuda_guide}. This API can be integrated seamlessly into existing codebases in such a way that the programmer is abstracted away from the low-level architecture of the GPU they are using. In recent years, highly-tuned primitives for machine learning-specific applications (eg. convolution, softmax, batch normalization, neuron activations, etc.) have become publicly available \cite{cudnn}, which further allow programmers to use GPUs to their benefit.
+NVIDIA conveniently provides the functionality to distribute a program's workload across GPU cores in the form of a rich C++ API \cite{cuda_guide}. This API can be integrated seamlessly into existing codebases in such a way that the programmer is abstracted away from the low-level architecture of the GPU they are using. In recent years, highly-tuned primitives for machine learning-specific applications (eg. convolution, softmax, batch normalization, neuron activations, etc.) have become publicly available \cite{cudnn}, which further allow programmers to use GPUs to their benefit.
 \par 
 
 %%%%%%%%% INTRODUCTION::Memory usage of DNNs
