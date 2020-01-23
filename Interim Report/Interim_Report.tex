@@ -19,6 +19,8 @@
 % run, let it finish, and you should be clear).
 \usepackage[breaklinks=true,bookmarks=false]{hyperref}
 \usepackage[title]{appendix}
+\usepackage{xcolor}
+\newcommand\myworries[1]{\textcolor{red}{#1}}
 
 \cvprfinalcopy % *** Uncomment this line for the final submission
 
@@ -54,14 +56,14 @@ Deep neural networks (DNNs) have a history dating back over half a century, with
 \section{Background}
 %%%%%%%%% BACKGROUND::Neural Networks
 \cvprsubsection{Neural Networks}
-While there are many types of neural networks, they all involve the transformation of some input data (for example the pixels of an image) into meaningful output - in fact, a neural network is nothing more than a composition of mathematical functions. The function modeled by a neural network is special, however, because it can model \textit{any} mathematical function with arbitrary accuracy (provided that the network has at least two layers) \cite{dnn_history}. It is because of this property that neural networks have been labeled \enquote*{universal approximators}. Loosely, this means that if there are useful patterns in the world - whether they correspond to user preferences in movies based on past movies they have watched, or classification of images based on their pixel composition, or even cardiac arrest likelihood based on heart rate - a sufficiently-trained neural network can identify it. The effectiveness of a neural network in identifying these patterns depends primarily on two things: the amount of data it has been trained with, and its specific topology.
+While there are many types of artificial neural networks, they all involve the transformation of some input data (for example the pixels of an image) into meaningful output - in fact, a neural network is nothing more than a composition of mathematical functions. The function modeled by a neural network is special, however, because it can model \textit{any} mathematical function with arbitrary accuracy (provided that the network has at least two layers) \cite{dnn_history}. It is because of this property that neural networks have been labeled \enquote*{universal approximators}. Loosely, this means that if there are useful patterns in the world - whether they correspond to user preferences in movies based on past movies they have watched, or classification of images based on their pixel composition, or even cardiac arrest likelihood based on heart rate - a sufficiently-trained neural network can identify it. The effectiveness of a neural network in identifying these patterns depends primarily on two things: the amount of data it has been trained with, and its specific topology.
 \par
 
 The neural network in Figure \ref{fig:feedforwardNN} shows the basic building blocks from which modern neural networks emerge. It is a simple feedforward neural network - a more complete list of network types can be found in Appendix \ref{appendix:types_of_networks}. The green nodes represent the input data to the network, which is what the network must use to make meaningful predictions. Perhaps, the input vector $[x_1,x_2,x_3,x_4]^T$ might represent a four-word sentence.\par
 
 The gray lines in the diagram represent \textit{weights}, or the scaling coefficients from one node to the next. These weights together create linear combinations of the outputs of one layer into the nodes of the next layer. \par 
 
-The purple nodes represent \textit{neurons}, which take a weighted sum of input nodes and produce a scalar-valued output. Each neuron is a nonlinear function; the nonlinearity is important here because without it the universal approximator guarantees no longer apply. For example, each neuron might be the ReLU function $f(x)=max(x,0)$ which clips all negative values. Notice how there are two layers of purple nodes here - this denotes that the model has two hidden layers. There can be an arbitrary number of hidden layers in a network. \par 
+The purple nodes represent \textit{neurons}, which take a weighted sum of input nodes and produce a scalar-valued output. Each neuron is a nonlinear function; the nonlinearity is important here because without it the universal approximator guarantees no longer apply. For example, each neuron might be the ReLU function $f(x)=max(x,0)$ which clips all negative values. The intermediate outputs of each layer are known as \textit{feature maps}. Notice how there are two layers of purple nodes here - this denotes that the model has two hidden layers. There can be an arbitrary number of hidden layers in a network. \par 
 
 Finally, the red nodes are the \textit{outputs}, which are the network's predictions based on the provided input data. In this example, each output node might be the one-hot-encoded representation of who likely wrote this sentence; a result close to 1 indicates a network's predicted output node. If $y_1$ is associated with Alice, $y_2$ with Bob, and $y_3$ with Charlie, then the output vector $[y_1,y_2,y_3]^T = [0.983,0.217,0.015]^T$ indicates that it was likely Alice's sentence.
 
@@ -75,7 +77,7 @@ Finally, the red nodes are the \textit{outputs}, which are the network's predict
 
 %%%%%%%%% BACKGROUND::GPUs and their application to DNNs
 \cvprsubsection{GPUs and their application to DNNs}
-Graphics Processing Units (GPUs) are at the center of recent machine learning breakthroughs. The computational workload for DNNs happens during \textit{training} (where DNNs are iteratively improved, e.g. to better-recognize faces or understand human speech) and \textit{inference}  (where already-trained DNNs are applied to the tasks they were trained for). Both training and inference are, in essence, complicated sequences of matrix operations; as it turns out, GPUs can perform these computations orders of magnitude faster than CPUs due to the parallelism inherent in their design. Figure \ref{fig:turing} shows the architecture of a modern GPU, which contains numerous computational cores (green).
+Graphics Processing Units (GPUs) are at the center of recent machine learning breakthroughs. It turns out that the computational workloads of neural networks are, in essence, sequences of matrix operations; as it was shown in the previous section, matrix multiplication is used to conveniently denote the application of scalar weights to the output of a neural network layer. GPUs can perform these computations orders of magnitude faster than CPUs due to the parallelism inherent in their design.  Figure \ref{fig:turing} shows the architecture of a modern GPU, which contains numerous computational cores (green).
 
 \begin{figure}[ht]
 \centering
@@ -85,7 +87,7 @@ Graphics Processing Units (GPUs) are at the center of recent machine learning br
 \label{fig:turing}
 \end{figure}
 
-To understand the value that GPUs bring in terms of computational parallelism, suppose that a program is scaling a matrix as follows:
+To understand the value that GPUs bring in terms of computational parallelism, suppose that a simple program is scaling a matrix as follows:
 \[
 3
 \begin{bmatrix}
@@ -101,23 +103,39 @@ To understand the value that GPUs bring in terms of computational parallelism, s
 This computation can be distributed over 4 GPU cores, which would each scale one element of the matrix. The program can then accumulate the results of the four operations, and store the results either by overwriting the old matrix or by creating a new one in memory. While this is a small example, the same principles can be applied to matrices with thousands of elements - as the dimensions increase, so does the benefit of using GPUs. 
 \par
 
-NVIDIA conveniently provides the functionality to distribute a program's workload across GPU cores in the form of a rich C++ API \cite{cuda_guide}. This API can be integrated seamlessly into existing codebases in such a way that the programmer is abstracted away from the low-level architecture of the GPU they are using. In recent years, highly-tuned primitives for machine learning-specific applications (eg. convolution, softmax, batch normalization, neuron activations, etc.) have become publicly available \cite{cudnn}, which further allow programmers to use GPUs to their benefit.
+NVIDIA conveniently provides the functionality to distribute a program's workload across GPU cores in the form of a rich C++ API \cite{cuda_guide}. This API can be integrated seamlessly into existing codebases in such a way that the programmer is abstracted away from the low-level architecture of the GPU they are using. In recent years, highly-tuned primitives for machine learning-specific applications (e.g. convolution, softmax, batch normalization, neuron activations, etc.) have become publicly available \cite{cudnn}, which further allow programmers to use GPUs to their benefit.
 \par 
 
 %%%%%%%%% BACKGROUND::Memory usage of DNNs
 \cvprsubsection{Memory usage of DNNs}
-One bottleneck which remains is the memory consumption of GPUs by DNNs. Inference requires an amount on the order of tens of MBs \cite{deep_compression}, while training might require tens of GBs \cite{vdnn}. NVIDIA’s RTX 2080 Ti comes with 11 GB of memory; even this modern, high-end device may face memory bottlenecks during training. \par 
+Neural networks are used in two modes: \textit{training} and \textit{inference}. While these two modes are closely related, they have certain key differences which ultimately affect the way they each interact with GPUs. A useful neural network must first be trained - this process involves iteratively improving the network's trainable parameters (i.e. weights). Training can further be broken down into two steps: a \textit{forwards pass} and a \textit{backwards pass}. As it turns out, the forwards pass is very similar to inference. Thus, the training of a neural network can be thought of as an extension of the inference process.
+\par 
 
-In practice, DNNs are implemented via frameworks such as MXNet and PyTorch. These frameworks provide convenient interfaces which enable researchers to codify their DNN architecture in a language such as Python, abstracting away the low-level implementation details that would require GPU-specific programming experience. Despite the rise in popularity of these frameworks in recent years, comprehensive tools to understand their memory usage are not provided out of the box. The EcoSystem research team at UofT, led by Prof. Gennady Pekhimenko, has recently developed open-source memory profiling tools for MXNet, TensorFlow, and CNTK [4]; such a tool for PyTorch, however, remains to be created. PyTorch is increasingly becoming one of the most widely-used frameworks and thus a memory profiler would have a large impact to the community.
+Both inference and the forwards pass of training accept some input data (in the Figure \ref{fig:feedforwardNN} example this would be $[x_1,x_2,x_3,x_4]^T$). These input nodes are passed through the network - whatever its specific topology may be - and transformed through compositions of weight scaling and nonlinear activation functions. Then, at the end of the network the outputs are produced. For inference, these final outputs are almost always what the user is interested in, since they are the meaningful interpretations of the input data. For the forwards pass of training, however, more than just the final outputs must be kept; since the goal of training is to iteratively improve the network, intermediate values are kept, and the outputs of the network must be evaluated based on how accurate their predictions were. These evaluations are done via a \textit{loss function}, which quantifies the difference between the network's outputs and the \textit{ground truth} of the input data (in most cases this refers to the \textit{correct} interpretation of the input data). Referring once again to the previous example, if it was known a priori that Bob wrote the sentence, then the network's output $[y_1,y_2,y_3]^T = [0.983,0.217,0.015]^T$ would be compared to the ground truth $[0,1,0]^T$ and produce a large loss function result, since $y_2$ was not close to 1 and $y_1$ was incorrectly close to 1. While loss functions are beyond the scope of this paper, more information on them can be found in Appendix \myworries{add loss appendix here}.
 \par
 
-Memory profilers provide otherwise-unavailable insight into how a framework handles the GPU’s memory and where it is being used (storing weights, gradients, feature maps, etc.). Understanding the memory breakdowns for various models drives the development of techniques that can optimize their footprints; some examples of existing techniques include Gist [5], vDNN [6], SCNN [7], and EIE [8]. Many of these developments were made possible in part due to detailed memory profiling functionality. 
+After the forwards pass of training comes the backwards pass. \myworries{finish}.
+
+% TODO: backpropagation example chain rule
+% Among these differences is their memory consumptions.??
+% TODO: optimizer example chain rule
+
+
+The computational workload for DNNs happens during \textit{training} (where DNNs are iteratively improved, e.g. to better-recognize faces or understand human speech) and \textit{inference}  (where already-trained DNNs are applied to the tasks they were trained for). One bottleneck which remains is the memory consumption of GPUs by DNNs. Inference requires an amount on the order of tens of MBs \cite{deep_compression}, while training might require tens of GBs \cite{vdnn}. NVIDIA’s RTX 2080 Ti comes with 11 GB of memory; even this modern, high-end device may face memory bottlenecks during training. \par 
+
+In practice, DNNs are implemented via frameworks such as MXNet and PyTorch. These frameworks provide convenient interfaces which enable researchers to codify their DNN architecture in a language such as Python, abstracting away the low-level implementation details that would require GPU-specific programming experience. Despite the rise in popularity of these frameworks in recent years, comprehensive tools to understand their memory usage are not provided out of the box. The EcoSystem research team at UofT, led by Prof. Gennady Pekhimenko, has recently developed open-source memory profiling tools for MXNet, TensorFlow, and CNTK \cite{cntk}; such a tool for PyTorch, however, remains to be created. PyTorch is increasingly becoming one of the most widely-used frameworks and thus a memory profiler would have a large impact to the community.
+\par
+
+Memory profilers provide otherwise-unavailable insight into how a framework handles the GPU’s memory and where it is being used (storing weights, gradients, feature maps, etc.). Understanding the memory breakdowns for various models drives the development of techniques that can optimize their footprints; some examples of existing techniques include Gist \cite{gist}, vDNN \cite{vdnn}, SCNN \cite{scnn}, and EIE \cite{eie}. Many of these developments were made possible in part due to detailed memory profiling functionality. 
 \par
 
 The first goal required for the development of a PyTorch memory profiler is to understand how PyTorch handles memory allocations at a low-level. The corresponding objectives will be to read the PyTorch codebase and get familiar with it, and then investigate how the framework allocates memory. The second goal is to create memory-profiling functionality for the framework. This is done by first modifying PyTorch to output logs during runtime about where and how memory is being used. It must be confirmed that all the expected memory is being accounted for, and that each allocation’s purpose is understood. Then, the memory allocations must be analyzed and visualized. The third goal is to use the PyTorch memory profiler in real-world use cases. This involves training cutting-edge models using the modified framework, reporting the results, and determining if improvements are possible.
 \par
 
 Changing the PyTorch framework involves altering the underlying C++ codebase. The source code is available publicly [9] and can be freely modified and rebuilt. A careful restructuring of this codebase will be required to ensure that every memory allocation is accounted for, and that it is known which data structures are requesting the memory. A parser program that will analyze the runtime outputs can be written in Python and, using libraries such as Matplotlib [10], a clear breakdown of the memory usage can be attained. Such a breakdown will include detailed information about how specific network layers and data structures consume memory.
+
+%%%%%%%%% BACKGROUND::Machine Learning Frameworks
+\cvprsubsection{Machine Learning Frameworks}
 
 %%%%%%%%% PROGRESS TO DATE
 \section{Progress to Date}
@@ -142,6 +160,7 @@ Changing the PyTorch framework involves altering the underlying C++ codebase. Th
 \end{appendices}
 
 
+%% TODO: get list of loss and activation functions and add them to appendix, then \ref them in the paper
 
 %%%%%%%%% REFERENCES
 \newpage
