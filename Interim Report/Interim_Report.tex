@@ -114,22 +114,58 @@ Neural networks are used in two modes: \textit{training} and \textit{inference}.
 Both inference and the forward pass of training accept some input data (in the Figure \ref{fig:feedforwardNN} example this would be $[x_1,x_2,x_3,x_4]^T$). These input nodes are passed through the network - whatever its specific topology may be - and transformed through compositions of weight scaling and nonlinear activation functions. Then, at the end of the network the outputs are produced. For inference, these final outputs are almost always the only thing that the user is interested in, since they are the meaningful interpretations of the input data. For the forward pass of training, however, more than just the final outputs must be kept; in fact, nearly all of the intermediate values that were used to propagate the data through the network must be kept for later stages of the training algorithm.
 \par
 
-%%%%%%%%% BACKGROUND::Backpropagation
-\cvprsubsection{Backpropagation}
+%%%%%%%%% BACKGROUND::Backpropagation and Memory
+\cvprsubsection{Backpropagation and Memory}
 Once the forward pass of training has finished, the first step is to evaluate the outputs of the network based on how accurate their predictions were. These evaluations are done via a \textit{loss function}, which quantifies the difference between the network's outputs and the \textit{ground truth} of the input data (in most cases this refers to the \textit{correct} interpretation of the input data). Referring once again to the previous example, if it was known that Bob in fact wrote the sentence, then the network's output $[y_1,y_2,y_3]^T = [0.983,0.217,0.015]^T$ would be compared to the ground truth $[0,1,0]^T$ and produce a large loss function result, since $y_2$ was not close to 1 and $y_1$ was incorrectly close to 1. While loss functions are beyond the scope of this paper, more information on them can be found in Appendix \myworries{add loss appendix here}.
 \par
 
-Next comes perhaps the most important part of training - backpropagation. Originally gaining attraction in the late 1980s \cite{hinton_backpropagation}, backpropagation involves calculating the partial derivatives of the loss function with respect to each weight in the network by using the chain rule. These calculations require the intermediate outputs of each layer, and thus are generally kept in memory during the forward pass and help until they are needed for backpropagation in the backward pass.
+Next comes perhaps the most important part of training - backpropagation. Originally gaining attraction in the late 1980s \cite{hinton_backpropagation}, backpropagation involves calculating the partial derivatives of the loss function with respect to each weight in the network by using the chain rule. These calculations require the intermediate outputs of each layer, which are generally kept in memory during the forward pass and held until they are needed. Once all the gradients in the network have been calculated, they can then be adjusted appropriately. It is this extra space requirement that lies at the heart of why GPU memory is an essential resource. As for how the weights are updated, there are many different algorithms known as \textit{optimizers} available \cite{optimizers} which can be employed. Gradient Descent, perhaps the most commonly known algorithm, is known as a first order optimization algorithm. It involves updating each weight in the network by a global scaling factor after all the gradients have been computed. Another popular algorithm is Adam \cite{adam}, which is known as a second order algorithm. Once again, the exact details of such algorithms are beyond the scope of this paper.
+\par
+
+Generally the training process is done with a training dataset, which should be an unbiased representation of what actual data looks like in the real world. For example, it is important that a speech to text model is not trained using only the speech of one person, otherwise the network would learn to recognize \textit{their} speech very well but would likely under perform when fed data from another person's speech. Training datasets are generally very large - for example, a commonly-used object detection dataset known as COCO \cite{COCO} has 330 000 images, and is 37.57 GB in size. This is far beyond the size of a typical GPU's memory. One implementation of Gradient Descent involves using mini-batches - uniform-size subsets which together comprise the entire dataset. Each example within a mini-batch has the training algorithm applied to it, and only once the entire mini-batch is completed are the weights updated based on the sum of all gradients. A breakdown of the entire training process is summarized in Figure \ref{fig:training_memory_breakdown}.
+\par
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=1\textwidth]{training_memory_breakdown.png}
+\captionsetup{width=0.7\linewidth}
+\caption{A breakdown of the training process, courtesy of TBD \cite{tbd}}
+\label{fig:training_memory_breakdown}
+\end{figure}
+
+%%%%%%%%% BACKGROUND::Machine Learning Frameworks and Memory Profilers
+\cvprsubsection{Machine Learning Frameworks and Memory Profilers}
+In practice, DNNs are implemented via frameworks such as PyTorch \cite{pytorch_paper}. These frameworks provide convenient interfaces which enable researchers to codify their DNN architecture in a language such as Python. Despite the rise in popularity of these frameworks in recent years, comprehensive tools to understand their memory usage are not provided out of the box. The EcoSystem research team at UofT, led by Prof. Gennady Pekhimenko, has recently developed open-source memory profiling tools for MXNet \cite{mxnet_paper}, TensorFlow \cite{tensorflow}, and CNTK \cite{cntk}; such a tool for PyTorch, however, remains to be created. PyTorch is increasingly becoming one of the most widely-used frameworks and thus a memory profiler would have a large impact to the community.
+\par
+
+All of these machine learning frameworks employ directed acyclic \textit{computational graphs}, which organize a sequence of operations on data. The nodes of computational graphs are the program's variables (tensors, scalar values, etc.), while the edges represent data dependencies. Edges terminating at a node signify inputs to a certain mathematical function, whose output value is stored in the variable representing the node. For the purposes of backpropagation, each node must also know how to compute the derivative of its output with respect to its inputs. In Figure \ref{fig:computational_graph}, the green edges represent the flow of data in a forward pass. Once the output $e$ has been calculated, the backward pass can be initiated, during which the gradients are calculated by traversing the graph in the reverse direction (red edges).
 
 
-% Among these differences is their memory consumptions.??
-% TODO: optimizer example chain rule
+\begin{figure}[ht]
+\centering
+\includegraphics[width=.7\textwidth]{computational_graph_example.png}
+\captionsetup{width=0.7\linewidth}
+\caption{A simple computational graph \cite{computational_graph_example}}
+\label{fig:computational_graph}
+\end{figure}
+
+The frameworks that these memory profilers were created for all use static computational graphs. \myworries{FINISH}
+
+
+
+
+
+\newpage
+\newpage
+\newpage
+\newpage
 
 ----------------------------------
+
+
 The computational workload for DNNs happens during \textit{training} (where DNNs are iteratively improved, e.g. to better-recognize faces or understand human speech) and \textit{inference}  (where already-trained DNNs are applied to the tasks they were trained for). One bottleneck which remains is the memory consumption of GPUs by DNNs. Inference requires an amount on the order of tens of MBs \cite{deep_compression}, while training might require tens of GBs \cite{vdnn}. NVIDIA’s RTX 2080 Ti comes with 11 GB of memory; even this modern, high-end device may face memory bottlenecks during training. \par 
 
-In practice, DNNs are implemented via frameworks such as MXNet and PyTorch. These frameworks provide convenient interfaces which enable researchers to codify their DNN architecture in a language such as Python, abstracting away the low-level implementation details that would require GPU-specific programming experience. Despite the rise in popularity of these frameworks in recent years, comprehensive tools to understand their memory usage are not provided out of the box. The EcoSystem research team at UofT, led by Prof. Gennady Pekhimenko, has recently developed open-source memory profiling tools for MXNet, TensorFlow, and CNTK \cite{cntk}; such a tool for PyTorch, however, remains to be created. PyTorch is increasingly becoming one of the most widely-used frameworks and thus a memory profiler would have a large impact to the community.
-\par
+
 
 Memory profilers provide otherwise-unavailable insight into how a framework handles the GPU’s memory and where it is being used (storing weights, gradients, feature maps, etc.). Understanding the memory breakdowns for various models drives the development of techniques that can optimize their footprints; some examples of existing techniques include Gist \cite{gist}, vDNN \cite{vdnn}, SCNN \cite{scnn}, and EIE \cite{eie}. Many of these developments were made possible in part due to detailed memory profiling functionality. 
 \par
@@ -138,9 +174,6 @@ The first goal required for the development of a PyTorch memory profiler is to u
 \par
 
 Changing the PyTorch framework involves altering the underlying C++ codebase. The source code is available publicly [9] and can be freely modified and rebuilt. A careful restructuring of this codebase will be required to ensure that every memory allocation is accounted for, and that it is known which data structures are requesting the memory. A parser program that will analyze the runtime outputs can be written in Python and, using libraries such as Matplotlib [10], a clear breakdown of the memory usage can be attained. Such a breakdown will include detailed information about how specific network layers and data structures consume memory.
-
-%%%%%%%%% BACKGROUND::Machine Learning Frameworks
-\cvprsubsection{Machine Learning Frameworks}
 
 %%%%%%%%% PROGRESS TO DATE
 \section{Progress to Date}
