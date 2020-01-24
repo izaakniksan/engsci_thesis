@@ -11,7 +11,7 @@
 \addbibresource{references.bib}
 \usepackage{csquotes}
 \usepackage{caption}
-
+\usepackage{python_code}
 % Include other packages here, before hyperref.
 
 % If you comment hyperref and then uncomment it, you should delete
@@ -135,10 +135,10 @@ Generally the training process is done with a training dataset, which should be 
 
 %%%%%%%%% BACKGROUND::Machine Learning Frameworks and Memory Profilers
 \cvprsubsection{Machine Learning Frameworks and Memory Profilers}
-In practice, DNNs are implemented via frameworks such as PyTorch \cite{pytorch_paper}. These frameworks provide convenient interfaces which enable researchers to codify their DNN architecture in a language such as Python. Despite the rise in popularity of these frameworks in recent years, comprehensive tools to understand their memory usage are not provided out of the box. The EcoSystem research team at UofT, led by Prof. Gennady Pekhimenko, has recently developed open-source memory profiling tools for MXNet \cite{mxnet_paper}, TensorFlow \cite{tensorflow}, and CNTK \cite{cntk}; such a tool for PyTorch, however, remains to be created. PyTorch is increasingly becoming one of the most widely-used frameworks and thus a memory profiler would have a large impact to the community.
+In practice, DNNs are implemented via frameworks such as PyTorch \cite{pytorch_paper}. These frameworks provide convenient interfaces which enable researchers to codify their DNN architecture in common programming languages including Python, C++, and Java. Despite the rise in popularity of these frameworks in recent years, comprehensive tools to understand their memory usage are not provided out of the box. The EcoSystem research team at UofT, led by Prof. Gennady Pekhimenko, has recently developed open-source memory profiling tools for MXNet \cite{mxnet_paper}, TensorFlow \cite{tensorflow}, and CNTK \cite{cntk}; such a tool for PyTorch, however, remains to be created. PyTorch is increasingly becoming one of the most widely-used frameworks and thus a memory profiler would have a large impact to the community.
 \par
 
-All of these machine learning frameworks employ directed acyclic \textit{computational graphs}, which organize a sequence of operations on data. The nodes of computational graphs are the program's variables (tensors, scalar values, etc.), while the edges represent data dependencies. Edges terminating at a node signify inputs to a certain mathematical function, whose output value is stored in the variable representing the node. For the purposes of backpropagation, each node must also know how to compute the derivative of its output with respect to its inputs. In Figure \ref{fig:computational_graph}, the green edges represent the flow of data in a forward pass. Once the output $e$ has been calculated, the backward pass can be initiated, during which the gradients are calculated by traversing the graph in the reverse direction (red edges).
+All of these machine learning frameworks employ directed acyclic \textit{computational graphs}, which organize sequences of operations on data. The nodes of computational graphs are the program's variables (tensors, scalar values, etc.), while the edges represent data dependencies. Edges terminating at a node signify inputs to a certain mathematical function, whose output value is stored in the variable representing the node. For the purposes of backpropagation, each node must also know how to compute the derivative of its output with respect to its inputs. In Figure \ref{fig:computational_graph}, the green edges represent the flow of data in a forward pass. Once the output $e$ has been calculated, the backward pass can be initiated, during which the gradients are calculated by traversing the graph in the reverse direction (red edges).
 
 
 \begin{figure}[ht]
@@ -149,8 +149,16 @@ All of these machine learning frameworks employ directed acyclic \textit{computa
 \label{fig:computational_graph}
 \end{figure}
 
-The frameworks that these memory profilers were created for all use static computational graphs. \myworries{FINISH}
+The frameworks that these memory profilers were created for all use static computational graphs. MXNet, for example, allows users to define computational symbols in Python which are then compiled under the hood. Since this graph is defined at the start, the program does not need to wait until the forward pass to create the graph. This compiled graph contains all placeholders for input and output tensors. When it comes time to use the graph - i.e. pass some input data through the network in the forward pass - MXNet internally calls its \textit{executor} \cite{mxnet_executor}. The executor will then allocate the memory for the tensors required for the graph. This point is important because specific memory regions of the GPU are linked to parts of the computational graph, and remain linked for the duration of the program. To derive meaning from what each part of the computational graph does - for example the part of the graph representing a Long Short-Term Memory (LSTM) cell \cite{lstm} within a speech recognition model - the naming employed by the programmer is used. Listing \ref{listing:lstm_example} shows an example of how a programmer might define an LSTM cell in their code
 
+\begin{lstlisting}[language=Python, caption={Symbolic naming of an LSTM cell, taken from the MXNet GPU profiler documentation \cite {mxnet_profiler}}, label={listing:lstm_example}]
+i2h = symbol.FullyConnected(data=inputs, weight=self._iW, bias=self._iB,
+                            num_hidden=self._num_hidden*4,
+                            name='%si2h'%name)
+h2h = symbol.FullyConnected(data=states[0], weight=self._hW, bias=self._hB,
+                            num_hidden=self._num_hidden*4,
+                            name='%sh2h'%name)
+\end{lstlisting}
 
 
 
