@@ -163,13 +163,11 @@ h2h = symbol.FullyConnected(data=states[0], weight=self._hW, bias=self._hB,
 Thus, the picture so far is that a user writes network definitions and training/inference procedures in a front end language such as Python, using an existing machine learning framework APIs. This framework interprets the user's code, and distributes the computational work to one or more GPUs (CPUs can be used as well, but for reasons outlined earlier GPUs are preferred). There are APIs used by the framework to interact with the GPU, which may vary as well. For NVIDIA GPUs, CUDA APIs are used, which interact with C++, C, and Fortran. For this reason, along with the fact that interpreted languages such as Python are generally less efficient than compiled languages, machine learning frameworks are themselves primarily written in C/C++.
 \par 
 
-For the purposes of this paper, one CUDA function is of particular importance: \texttt{cudaMalloc()}. This function is ultimately called when the framework requires memory resources on the device\footnote{Typically, \textit{device} refers to the GPU and \textit{host} refers to the CPU}. \texttt{cudaMalloc()} will return a pointer to where the requested memory lies; if space for a tensor was requested, then this pointer might be used for the remainder of the program to access and modify this tensor. However, it is ultimately up to the framework to manage its memory, and different frameworks have different strategies. 
+For the purposes of this paper, one CUDA function is of particular importance: \texttt{cudaMalloc()}. This function allows the framework to request any number of bytes in memory on the device\footnote{Typically, \textit{device} refers to the GPU and \textit{host} refers to the CPU}. Each call to \texttt{cudaMalloc()} will return a pointer to where the requested memory lies; if space for a tensor was requested, then this pointer might be used for the remainder of the program to access and modify this tensor. However, it is ultimately up to the framework to manage its memory, and different frameworks have different strategies. 
 \par 
 
-The MXNet memory profiler's primary hurdle involves linking symbol names to specific \texttt{cudaMalloc()} calls. This linkage allows the profiler to establish how much memory was needed for which part of the computational graph, and therefore can determine the memory breakdown of the models' weights, activations, and gradients. However, there is no direct way to do this in the existing MXNet codebase, and thus it was modified to make these connections. Function signatures were changed so that the strings representing symbol names could be passed down to the underlying allocations. A C++ helper class was created to create entries in a log file with information about the memory breakdown. The log file can then be parsed with provided scripts to create visualizations of the results.
+The MXNet memory profiler's main challenge is linking symbol names to specific \texttt{cudaMalloc()} calls. This linkage allows the profiler to establish how much memory was needed for which part of the computational graph, and therefore can determine the memory breakdown of the models' weights, activations, and gradients. However, there is no direct way to do this in the existing MXNet codebase, and thus it was modified to make these connections. Function signatures were changed so that the strings representing symbol names could be passed down to the underlying allocations. A C++ helper class was created to create entries in a log file with information about the memory breakdown. The log file can then be parsed with provided scripts to create visualizations of the results.
 \par 
-
-
 
 \begin{figure}[ht]
 \centering
@@ -179,17 +177,31 @@ The MXNet memory profiler's primary hurdle involves linking symbol names to spec
 \label{fig:mxnet_design}
 \end{figure}
 
-
-%The computational workload for DNNs happens during \textit{training} (where DNNs are iteratively improved, e.g. to better-recognize faces or understand human speech) and \textit{inference}  (where already-trained DNNs are applied to the tasks they were trained for). One bottleneck which remains is the memory consumption of GPUs by DNNs. Inference requires an amount on the order of tens of MBs \cite{deep_compression}, while training might require tens of GBs \cite{vdnn}. NVIDIA’s RTX 2080 Ti comes with 11 GB of memory; even this modern, high-end device may face memory bottlenecks during training. \par 
-
-
-%The first goal required for the development of a PyTorch memory profiler is to understand how PyTorch handles memory allocations at a low-level. The corresponding objectives will be to read the PyTorch codebase and get familiar with it, and then investigate how the framework allocates memory. The second goal is to create memory-profiling functionality for the framework. This is done by first modifying PyTorch to output logs during runtime about where and how memory is being used. It must be confirmed that all the expected memory is being accounted for, and that each allocation’s purpose is understood. Then, the memory allocations must be analyzed and visualized. The third goal is to use the PyTorch memory profiler in real-world use cases. This involves training cutting-edge models using the modified framework, reporting the results, and determining if improvements are possible. \par
-
-%Changing the PyTorch framework involves altering the underlying C++ codebase. The source code is available publicly [9] and can be freely modified and rebuilt. A careful restructuring of this codebase will be required to ensure that every memory allocation is accounted for, and that it is known which data structures are requesting the memory. A parser program that will analyze the runtime outputs can be written in Python and, using libraries such as Matplotlib [10], a clear breakdown of the memory usage can be attained. Such a breakdown will include detailed information about how specific network layers and data structures consume memory.
-
 %%%%%%%%% PROGRESS TO DATE
 \section{Progress to Date}
 \label{progress_to_date}
+Unlike the frameworks for which these memory profilers were created, PyTorch uses completely different memory management and computational graph strategies. In order to create a memory profiler for PyTorch, these differences must be investigated and thoroughly understood. This involves investigating both its front end (Python\footnote{While PyTorch does have a C++ front end as well, it is generally less user-friendly and therefore rarely used}) and back end (C++) code implementations. \myworries{TALK ABOUT WHAT THE SECTION IS ABOUT}
+
+%%%%%%%%% PROGRESS TO DATE::Memory Caching
+\cvprsubsection{Memory Caching}
+The first difference - and perhaps most important one in this context - is how PyTorch handles its device memory. Unlike other frameworks, PyTorch uses \textit{caching} as its primary memory management strategy. The reason for this lies in the fact that PyTorch does not create a static computational graph with pre-allocated room for variables and tensors. This new paradigm, which is discussed in later sections of this paper, is known as \textit{dynamic computational graphs}. For now it suffices to say that PyTorch does not know how the forward and backward pass will be executed until runtime, i.e. until training or inference begins.
+\par 
+
+\myworries{example of memory usage graph, allocated vs max allocated?}
+
+%%%%%%%%% PROGRESS TO DATE::Models in PyTorch
+\cvprsubsection{Models in PyTorch}
+% named_parameters()
+
+%%%%%%%%% PROGRESS TO DATE::Dynamic Computational Graphs and Autograd
+\cvprsubsection{Dynamic Computational Graphs and Autograd}
+% leaf nodes, requires_grad=True
+% forward pass creates one computational graph
+
+%%%%%%%%% PROGRESS TO DATE::Hooks
+\cvprsubsection{Hooks}
+% forward hook, backward hook
+
 
 %%%%%%%%% FUTURE WORK
 \section{Future Work}
