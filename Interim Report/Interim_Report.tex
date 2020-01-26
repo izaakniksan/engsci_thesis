@@ -257,9 +257,9 @@ Given that this paper is concerned with the memory usage of PyTorch, two questio
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \cvprsubsection{Models in PyTorch}
-Tensors can only get a user so far. Ultimately, machine learning researchers need an interface to codify their machine learning models, which can then be trained and used. The main abstraction used to do this in PyTorch is the \texttt{nn.Module} class. It is something that PyTorch users quickly become accustomed to using, since it is employed to implement 
+Tensors can only get a user so far. Ultimately, machine learning researchers need an interface to codify their machine learning models, which can then be trained and used. The main interface used to do this in PyTorch is the \texttt{nn.Module} class. For example, Listing \ref{listing:nn.module_example} defines a simple two-layer network:
 \par 
-\begin{lstlisting}[language=Python, caption={}, label={listing:nn.module_example}]
+\begin{lstlisting}[language=Python, caption={Definition of a simple two-layer neural network from the PyTorch documentation \cite{pytorch_tutorial}}, label={listing:nn.module_example}]
 class TwoLayerNet(torch.nn.Module):
     def __init__(self, D_in, H, D_out):
         super(TwoLayerNet, self).__init__()
@@ -271,7 +271,13 @@ class TwoLayerNet(torch.nn.Module):
         y_pred = self.linear2(h_relu)
         return y_pred
 \end{lstlisting}
+Here, a network called \texttt{TwoLayerNet} is being defined. Notice how it inherits from \texttt{nn.Module}. The \texttt{\_\_init\_\_} method of this network is invoked whenever an instance of it is created. A user generally instantiates one model which persists for the duration of their PyTorch program. This method is where the \textit{structure} of the model is defined - how many and what types of layers are present, which layers connect to what, and so on. The code here can be as complex or as simple as the user wishes; this modularity is what enables PyTorch to implement arbitrary neural networks. This example uses two linear layers, using the PyTorch-provided \texttt{torch.nn.Linear} \footnote{The \texttt{torch.nn.Linear} layer applies the linear transformation $y=xA^T + b$} implementations \cite{pytorch_docs}.
+\par 
+
+Next, a \texttt{forward} method is defined.
+
 % named_parameters()
+% init registers automatically as parameters?
 
 %%%%%%%%% PROGRESS TO DATE::Dynamic Computational Graphs and Autograd
 \cvprsubsection{Dynamic Computational Graphs and Autograd}
