@@ -12,6 +12,7 @@
 \usepackage{csquotes}
 \usepackage{caption}
 \usepackage{python_code}
+\usepackage{enumitem}   
 % Include other packages here, before hyperref.
 
 % If you comment hyperref and then uncomment it, you should delete
@@ -223,7 +224,7 @@ By gradually increasing the cache size as the program progresses, the majority o
 
 \cvprsubsection{Tensors in PyTorch}
 \label{sec:tensors_in_pytorch}
-Thus far, tensors have been mentioned but not yet explained in detail. Tensors are n-dimensional data structures which contain a certain type of data, for example integers or floats. The actual data represented by a tensor - for example a matrix representing the scalar weights from the first to the second hidden layer of a network - is accompanied by some metadata which describes various attributes about the tensor. The metadata of a tensor includes its dimensions (depth, height, width), strides, element data type, and the device it is stored on. Among these, strides may be an unfamiliar one - in fact, striding is one of the defining features of PyTorch. To understand striding, it must first be understood that every tensor is associated with a \textbf{storage} object. Tensors can be thought of as the logical views of the data, while a storage can be thought of as a data structure which manages the raw data. It is entirely possible in PyTorch for two tensors to point to the same storage object, with each of the two tensors having different perspectives about how to view the underlying raw data. For example, suppose a PyTorch program created the following two tensors:
+Thus far, tensors have been mentioned but not yet explained in detail. Tensors are n-dimensional data structures which contain a certain type of data, for example integers or floats. The actual data represented by a tensor - for example a matrix representing the scalar weights from the first to the second hidden layer of a network - is accompanied by some metadata which describes various attributes about the tensor. The metadata of a tensor includes its dimensions (depth, height, width), strides, element data type, and the device it is stored on. Among these, strides may be an unfamiliar one - in fact, striding is one of the defining features of PyTorch. To explain striding, it must first be understood that every tensor is associated with a \textbf{storage} object. a tensor can be thought of as the logical view of data, while a storage can be thought of as a structure which manages the raw data. It is entirely possible in PyTorch for two tensors to point to the same storage object, with each of the two tensors having different perspectives about how to view the underlying raw data. For example, suppose a PyTorch program created the following two tensors:
 
 \[
 X =
@@ -243,6 +244,12 @@ Y =
 Both $X$ and $Y$ contain the integers from 1 to 4; however, they each provide different logical representations of the data. This information is captured by the stride of a tensor, which are offsets to map element indices into specific memory addresses. Storages don't understand the data they encapsulate, it is up to the tensors to provide the interpretation. The reference counters explained in section \ref{sec:memory_caching} are in fact handled by storage objects. When no tensors point to a certain storage anymore, the memory occupied by the storage is release to the cache.  
 \par 
 
+Given that this paper is concerned with the memory usage of PyTorch, two questions must be answered: \myworries{answers are  data ptr, numel*}
+\begin{enumerate}[label=(\roman*)]
+  \item How can a tensor abstraction's link to underlying device memory be ascertained, and how can a memory profiler safely handle two or more tensors which point to the same underlying storage?
+  \item Given (i), how can this link be translated into a specific size in bytes, and how can a memory profiler take into account PyTorch's unique caching memory management strategy, where CUDA memory allocations are no longer directly tied to a specific object within the framework?
+\end{enumerate}
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
 %     PROGRESS TO DATE::Models in PyTorch
@@ -250,6 +257,20 @@ Both $X$ and $Y$ contain the integers from 1 to 4; however, they each provide di
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \cvprsubsection{Models in PyTorch}
+Tensors can only get a user so far. Ultimately, machine learning researchers need an interface to codify their machine learning models, which can then be trained and used. The main abstraction used to do this in PyTorch is the \texttt{nn.Module} class. It is something that PyTorch users quickly become accustomed to using, since it is employed to implement 
+\par 
+\begin{lstlisting}[language=Python, caption={}, label={listing:nn.module_example}]
+class TwoLayerNet(torch.nn.Module):
+    def __init__(self, D_in, H, D_out):
+        super(TwoLayerNet, self).__init__()
+        self.linear1 = torch.nn.Linear(D_in, H)
+        self.linear2 = torch.nn.Linear(H, D_out)
+
+    def forward(self, x):
+        h_relu = self.linear1(x).clamp(min=0)
+        y_pred = self.linear2(h_relu)
+        return y_pred
+\end{lstlisting}
 % named_parameters()
 
 %%%%%%%%% PROGRESS TO DATE::Dynamic Computational Graphs and Autograd
