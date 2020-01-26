@@ -136,6 +136,7 @@ Generally the training process is done with a training dataset, which should be 
 
 %%%%%%%%% BACKGROUND::Machine Learning Frameworks and Memory Profilers
 \cvprsubsection{Machine Learning Frameworks and Memory Profilers}
+\label{sec:Machine_Learning_Frameworks_and_Memory_Profiler}
 In practice, DNNs are implemented via frameworks such as  Caffe \cite{caffe}, Theano \cite{theano}, MXNet \cite{mxnet_paper}, TensorFlow \cite{tensorflow}, CNTK \cite{cntk}, Chainer \cite{chainer}, Torch \cite{torch}, Keras \cite{keras}, and PyTorch \cite{pytorch_paper}. These frameworks provide convenient interfaces which enable researchers to codify their DNN architecture in common programming languages including Python, C++, and Java. Despite the rise in popularity of these frameworks in recent years, comprehensive tools to understand their memory usage are not provided out of the box. The EcoSystem research team at UofT, led by Prof. Gennady Pekhimenko, has recently developed open-source memory profiling tools for MXNet \cite{mxnet_paper}, TensorFlow \cite{tensorflow}, and CNTK \cite{cntk}; such a tool for PyTorch, however, remains to be created. PyTorch is increasingly becoming one of the most widely-used frameworks and thus a memory profiler would have a large impact to the community.
 \par
 
@@ -204,7 +205,7 @@ In general, deallocation strategies are more nuanced than their allocation count
 PyTorch does not use garbage collection. Instead, to determine whether a certain tensor is needed or not, a technique called \textit{reference counting} is employed. The reference counter of a tensor is modified dynamically at runtime based on how many variables reference it. This system tracks both the back end references (PyTorch's internal references to the tensor) as well as the front end references (user-created references in their Python code) to ensure that a tensor is only freed when there is truly no use for it anymore. When a reference counter reaches zero, the memory occupied by the tensor is immediately released back to the cache. This means that at no point will there be objects with zero references which still occupy device memory. It should be noted here that the program's cache size generally does not decrease - thus even when the reference counting system frees a tensor, the total device memory occupied by the PyTorch program will not decrease since it is still held by the cache.
 \par 
 
-By gradually increasing the cache size as the program progresses, the majority of the CUDA memory API calls will occur near the start of the program, particulary in the first few iterations\footnote{An iteration refers to the combined forward and backward pass of one mini-batch through the network} of training. This is illustrated in Figure \ref{fig:cuda_memory_kernels}, where the utilization of the GPU (density of CUDA kernel execution in blue) is low compared to subsequent iterations. This decreased computational efficiency can be attributed to the costly memory management APIs.
+By gradually increasing the cache size as the program progresses, the majority of the CUDA memory API calls will occur near the start of the program, particulary in the first few iterations\footnote{An iteration refers to the combined forward and backward pass of one mini-batch through the network} of training. This is illustrated in Figure \ref{fig:cuda_memory_kernels}, where the utilization of the GPU (density of CUDA kernel execution in blue) is low in the first iteration compared to subsequent iterations. This decreased computational efficiency can be attributed to the costly memory management APIs.
 \myworries{example of memory usage graph, allocated vs max allocated? also talk about nvidia-smi}
 
 \begin{figure}[ht]
@@ -296,21 +297,37 @@ The output is as follows:
     tensor([1.], requires_grad=True)
 \end{lstlisting}
 \par
+This convenient storage of layer names has many similarities to the one previously discussed in MXNet in section \ref{sec:Machine_Learning_Frameworks_and_Memory_Profiler}, and will serve to be useful in creating a new memory profiler for PyTorch given the mapping it provides between layer names and their data objects. 
 %%%%%%%%% PROGRESS TO DATE::Dynamic Computational Graphs and Autograd
 \cvprsubsection{Dynamic Computational Graphs and Autograd}
-The network definition in Listing \ref{listing:nn.module_example} has one other important definition, namely the \texttt{forward} method. This method describes the exact sequence of calculations that will be undertaken during the forward pass of the network, both during training and inference.
+The network definition in Listing \ref{listing:nn.module_example} has one other important definition, namely its \texttt{forward()} method. This method describes the exact sequence of calculations that will be undertaken during the forward pass of the network, both during training and inference. This example is trivial, and the backward pass procedure could be defined manually with some basic calculus and a few lines of code. However, modern neural networks are very complex and have detailed computational procedures that define their forward passes. Manually defining a backward pass each time would be an arduous and error-prone process, and thus a scalable system is required.
+\par
 
-% leaf nodes, requires_grad=True
-% forward pass creates one computational graph
+PyTorch uses \textbf{automatic differentiation} \cite{automatic_differentiation}, implemented within the \texttt{torch.autograd} package, to take care of this problem. Distinct from other algorithmic methods such as symbolic and numerical differentiation, automatic differentiation is founded on the observation that any arbitrary computer program can be decomposed into arithmetic operations ($+,-,*,\div$) and elementary functions ($log, sine, cosine, exp,$ etc.). Recursively applying the chain rule allows the program to calculate derivatives (subject of course to floating point precision errors) using only an order of $O(n)$ extra computation. In practice, the linear factor is typically small in magnitude, leading to only a small decrease in performance.
+\par 
+
+During each iteration, PyTorch will gradually create a computational graph \textit{dynamically} as the program executes - this is a large departure from other frameworks, such as MXNet, which create a \textit{static} graph at the start of the program. When PyTorch starts the backward pass with a $.backward()$ call, the graph will be walked back and gradients will be calculated. Returning to Figure \ref{fig:computational_graph}, the gradient of the output node $e$ with respect to the input node $b$ could not be calculated directly; because of the nature of the chain rule, the gradients of \textit{intermediate} nodes were required for the calculation. These occupy space in memory and must not be neglected. Notice also that derivatives with respect to $a$ were \textit{not} calculated; for this reason, it cannot be assumed that every node will participate in PyTorch's backward pass procedure. In fact, if the gradient of $a$ with respect to the output $e$ were not required, and there were other intermediate nodes in the graph which were not needed for computing the gradient of $e$, these nodes would not have their gradients calculated either. Thus, it cannot be assumed that every tensor involved in a PyTorch computational graph will necessarily have its gradients computed and stored in memory. More generally, if a tensor has \texttt{requires\_grad=True}, then PyTorch must calculate gradients for it. The exact behaviour is outlined in the PyTorch documentation \cite{pytorch_doc_leaf_requires_grad}. 
+\par 
 
 %%%%%%%%% PROGRESS TO DATE::Gradients, Activations, and Hooks
-\cvprsubsection{Gradients, Activations, and Hooks}
+\cvprsubsection{Activations, Gradients, and Hooks}
+Activations are the scalar outputs of network layers, and gradients are the derivatives necessary for backpropagation. To create a memory profiler, the tensors which represent these data structures must be properly accounted for. During the forward pass of training, activations are gradually computed and stored in PyTorch's memory cache. Then, during the backward pass, gradients are computed using these activations. Immediately after the backward pass, all of these intermediate tensors are no longer needed, and are cleared from the cache. At this point, only the gradients of \textbf{leaf tensors} \cite{pytorch_doc_leaf_requires_grad} of the computational graph - i.e. the ones ones which must be improved during the iteration - are kept in memory. These gradients can then be used by an optimizer (e.g. Adam) to take a step in the direction which reduces the loss function of the network.
+\par 
+
+This complicated set of procedures - where the total allocated memory routinely fluctuates throughout training, and where tensor memory is not even linked directly to \texttt{cudaMalloc()} calls but rather is simply taken and returned to a global cache - provides new challenges not faced when tracking the memory of a static graph framework. However, all hope is not lost
+
+The \texttt{.grad} attribute of a tensor stores its gradient 
+
+
 % forward hook, backward hook
 % Previously, learnable was mentioned: what does it mean
+
+
 %%%%%%%%% PROGRESS TO DATE::Creating the Profiler
 \cvprsubsection{Creating the Profiler}
 % garbage collection? during a hook run garbage collection?
-%data pointers
+%data pointers, size of memory
+In the face of all the internal complexities that have been outlined thus far, it should be clear that that new mechanisms
 
 %%%%%%%%% FUTURE WORK
 \section{Future Work}
