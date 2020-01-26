@@ -224,7 +224,7 @@ By gradually increasing the cache size as the program progresses, the majority o
 
 \cvprsubsection{Tensors in PyTorch}
 \label{sec:tensors_in_pytorch}
-Thus far, tensors have been mentioned but not yet explained in detail. Tensors are n-dimensional data structures which contain a certain type of data, for example integers or floats. The actual data represented by a tensor - for example a matrix representing the scalar weights from the first to the second hidden layer of a network - is accompanied by some metadata which describes various attributes about the tensor. The metadata of a tensor includes its dimensions (depth, height, width), strides, element data type, and the device it is stored on. Among these, strides may be an unfamiliar one - in fact, striding is one of the defining features of PyTorch. To explain striding, it must first be understood that every tensor is associated with a \textbf{storage} object. a tensor can be thought of as the logical view of data, while a storage can be thought of as a structure which manages the raw data. It is entirely possible in PyTorch for two tensors to point to the same storage object, with each of the two tensors having different perspectives about how to view the underlying raw data. For example, suppose a PyTorch program created the following two tensors:
+Thus far, tensors have been mentioned but not yet explained in detail. Tensors are n-dimensional data structures which contain a certain type of data, for example integers or floats. The actual data represented by a tensor - for example a matrix representing the scalar weights from the first to the second hidden layer of a network - is accompanied by some metadata which describes various attributes about the tensor. The metadata of a tensor includes its dimensions (depth, height, width), strides, element data type, and the device it is stored on. Among these, strides may be an unfamiliar one - in fact, striding is one of the defining features of PyTorch. To explain striding, it must first be understood that every tensor is associated with a \textbf{storage} object. A tensor can be thought of as the logical view of data, while a storage can be thought of as a structure which manages the raw data. It is entirely possible in PyTorch for two tensors to point to the same storage object, with each of the two tensors having different perspectives about how to view the underlying raw data. For example, suppose a PyTorch program created the following two tensors:
 
 \[
 X =
@@ -295,31 +295,29 @@ The output is as follows:
 >>> Tensor name=will_be_registered, Tensor data=Parameter containing:
     tensor([1.], requires_grad=True)
 \end{lstlisting}
-Next, the \texttt{forward} method in Listing \ref{listing:nn.module_example} is examined.
-
-
-Aside from this, a \texttt{parameter} has all the same functionality as a normal tensor.
-
-\par 
-Next, a \texttt{forward} method is defined. This method describes the exact sequence of calculations that will be undertaken during the forward pass of the network. Recall that the forward pass happens for both training and inference.
-
-% named_parameters()
-% init registers automatically as parameters?
-
+\par
 %%%%%%%%% PROGRESS TO DATE::Dynamic Computational Graphs and Autograd
 \cvprsubsection{Dynamic Computational Graphs and Autograd}
+The network definition in Listing \ref{listing:nn.module_example} has one other important definition, namely the \texttt{forward} method. This method describes the exact sequence of calculations that will be undertaken during the forward pass of the network, both during training and inference.
+
 % leaf nodes, requires_grad=True
 % forward pass creates one computational graph
 
-%%%%%%%%% PROGRESS TO DATE::Hooks
-\cvprsubsection{Hooks}
+%%%%%%%%% PROGRESS TO DATE::Gradients, Activations, and Hooks
+\cvprsubsection{Gradients, Activations, and Hooks}
 % forward hook, backward hook
-
+% Previously, learnable was mentioned: what does it mean
+%%%%%%%%% PROGRESS TO DATE::Creating the Profiler
+\cvprsubsection{Creating the Profiler}
+% garbage collection? during a hook run garbage collection?
+%data pointers
 
 %%%%%%%%% FUTURE WORK
 \section{Future Work}
 \label{future_work}
-
+% Create the program that pieces everything together, provides a nice interface with clean user options
+% Create graphs and stuff
+% Test it on real models
 
 %%%%%%%%% APPENDIX
 \newpage
