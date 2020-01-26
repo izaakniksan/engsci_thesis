@@ -271,15 +271,34 @@ class TwoLayerNet(torch.nn.Module):
         y_pred = self.linear2(h_relu)
         return y_pred
 \end{lstlisting}
-Here, a network called \texttt{TwoLayerNet} is being defined. Notice how it inherits from \texttt{nn.Module}. The \texttt{\_\_init\_\_} method of this network is invoked whenever an instance of it is created. A user generally instantiates one model which persists for the duration of their PyTorch program. This method is where the \textit{structure} of the model is defined - how many and what types of layers are present, which layers connect to what, and so on. The code here can be as complex or as simple as the user wishes; this modularity is what enables PyTorch to implement arbitrary neural networks. This example creates two linear layers using the PyTorch-provided \texttt{torch.nn.Linear} \footnote{The \texttt{torch.nn.Linear} layer applies the linear transformation $y=xA^T + b$} implementations \cite{pytorch_docs}. The input parameters \texttt{D\_in} and \texttt{D\_out} are used to specify the dimensions of these two layers.
+Here, a network called \texttt{TwoLayerNet} is being defined. Notice how it inherits from \texttt{nn.Module}. The \texttt{\_\_init\_\_} method of this network is invoked whenever an instance of it is created and a user generally instantiates one model which persists for the duration of their PyTorch program. This method is where the \textit{structure} of the model is defined - how many and what types of layers are present, which layers connect to what, and so on. The code here can be as complex or as simple as the user wishes; this modularity is what enables PyTorch to implement arbitrary neural networks. This example creates two linear layers using the PyTorch-provided \texttt{torch.nn.Linear} \footnote{The \texttt{torch.nn.Linear} layer applies the linear transformation $y=xA^T + b$} implementations \cite{pytorch_docs}. The input parameters \texttt{D\_in} and \texttt{D\_out} are used to specify the dimensions of these two layers.
 \par 
 
-One interesting feature of the \texttt{\_\_init\_\_} method is that all learnable layers of the network - ones that must be trained - are automatically registered and saved to the model's list of parameters. Using the \texttt{torch.nn.Linear} API handles this by default, but if one were to define a learnable tensor themselves, they would have to wrap them with \texttt{torch.nn.Parameter}. For example: 
-\begin{lstlisting}[language=Python]
-bad without parameter
-good with parameter
-\end{lstlisting}
+One interesting feature of the \texttt{\_\_init\_\_()} method is that all \textit{learnable} layers of the network - i.e. ones that must be trained, which must have their gradients computed - are automatically registered and saved to the model's list of \texttt{parameters}. Using the \texttt{torch.nn.Linear} API handles this by default, but if one were to define a learnable tensor themselves, they would have to wrap them with \texttt{torch.nn.Parameter}. For example, observe the following two tensor definitions: 
 
+\begin{lstlisting}[language=Python]
+import torch
+class MyNetwork(torch.nn.Module):
+    def __init__(self):
+        super(MyNetwork, self).__init__()
+        self.wont_be_registered=torch.tensor([1.0])
+        self.will_be_registered=torch.nn.Parameter(torch.tensor([1.0]))
+\end{lstlisting}
+Here, one tensor is defined correctly and thus will forever be saved within a dictionary data structure in the PyTorch back end code. The other is not, and will not be added to this data structure. Wrapping a tensor in this way does not change any of its functionality. To verify this, an instance of the model is instantiated and then a built-in class function called \texttt{named\_parameters()} is invoked:
+\begin{lstlisting}[language=Python]
+model=MyNetwork()
+for name,param in model.named_parameters():
+    print(f"Tensor name={name}, Tensor data={param}")
+\end{lstlisting}
+The output is as follows:
+\begin{lstlisting}[language=Python]
+>>> Tensor name=will_be_registered, Tensor data=Parameter containing:
+    tensor([1.], requires_grad=True)
+\end{lstlisting}
+Next, the \texttt{forward} method in Listing \ref{listing:nn.module_example} is examined.
+
+
+Aside from this, a \texttt{parameter} has all the same functionality as a normal tensor.
 
 \par 
 Next, a \texttt{forward} method is defined. This method describes the exact sequence of calculations that will be undertaken during the forward pass of the network. Recall that the forward pass happens for both training and inference.
