@@ -315,10 +315,10 @@ During each iteration, PyTorch will gradually create a computational graph \text
 Activations are the scalar outputs of network layers, and gradients are the derivatives necessary for backpropagation. To create a memory profiler, the tensors which represent these data structures must be properly accounted for. During the forward pass of training, activations are gradually computed and stored in PyTorch's memory cache. Then, during the backward pass, gradients are computed using these activations. Immediately after the backward pass, all of these intermediate tensors are no longer needed, and are cleared from the cache. At this point, only the gradients of \textbf{leaf tensors} \cite{pytorch_doc_leaf_requires_grad} of the computational graph - i.e. the ones ones which must be improved during the iteration - are kept in memory. These gradients can then be used by an optimizer (e.g. Adam) to take a step in the direction which reduces the loss function of the network.
 \par 
 
-This complicated set of procedures - where the total allocated memory routinely fluctuates throughout training, and where tensor memory is not even linked directly to \texttt{cudaMalloc()} calls but rather is simply taken and returned to a global cache - provides new challenges not faced when tracking the memory of a static graph framework. However, all hope is not lost, since PyTorch provides some hidden tools which help shed light on the forward and backward pass: \textbf{hooks}.
+This complicated set of procedures - where the total allocated memory routinely fluctuates throughout training, and where tensor memory is not even linked directly to \texttt{cudaMalloc()} calls but rather is simply taken and returned to a global cache - provides new challenges not faced when tracking the memory of a static graph framework. Luckily, however, PyTorch provides some hidden tools which help shed light on the forward and backward pass: \textbf{hooks}.
 \par 
 
-There are several variants of hooks in PyTorch, but unfortunately they have very little documentation. Still, the insight they bring is valuable, despite the fact that most information about them is only found spread across the PyTorch forums \cite{pytorch_forum}. Hooks are \textit{functions} which can be registered on either a \texttt{nn.Module} or a \texttt{Tensor} object. Then, depending on the type of hook, at specific times either during the backward or forward pass these functions are called. These allow direct access to the intermediate activations and gradients at the time of their creation. There are three types of hooks: \texttt{register\_hook()}, \texttt{register\_forward\_hook()}, and \texttt{register\_backward\_hook()}. %Further complicating things, the behaviour of hooks differs depending on whether they are registered to a \texttt{nn.Module} or a \texttt{Tensor}.
+There are several variants of hooks in PyTorch, but unfortunately they have very little documentation. Still, the insight they bring is valuable, despite the fact that most information about them is only found spread across the PyTorch forums \cite{pytorch_forum}. Hooks are \textit{functions} which can be registered on either a \texttt{nn.Module} or a \texttt{Tensor} object. The three methods used to register hooks are: \texttt{register\_hook()}, \texttt{register\_forward\_hook()}, and \texttt{register\_backward\_hook()}. Depending on the type of hook, during the backward or forward pass these functions are called. Hooks allow direct access to the intermediate activations and gradients at the time of their creation - exactly what is needed for a memory profiler.  %Further complicating things, the behaviour of hooks differs depending on whether they are registered to a \texttt{nn.Module} or a \texttt{Tensor}.
 \par 
 
 
@@ -333,14 +333,43 @@ There are several variants of hooks in PyTorch, but unfortunately they have very
 \cvprsubsection{Creating the Profiler}
 % garbage collection? during a hook run garbage collection?
 %data pointers, size of memory
-In the face of all the internal complexities that have been outlined thus far, it should be clear that that new mechanisms must be created to profile PyTorch's device memory usage. The proposed memory layer-by-layer breakdown into weights, activations, and gradients is described below.
+In the face of all the internal complexities that have been outlined thus far, it should be clear that that new mechanisms must be created to profile PyTorch's device memory usage. A proposed strategy to attain a layer-by-layer breakdown into weights, activations, and gradients is developed using knowledge and methods that have been developed in previous sections. It is noted that this strategy departs from the strategies used with existing profilers in that it only uses the front end Python API available in PyTorch. This means that the profiler is version-agnostic and thus future-proof. Given the particularly fast-changing nature of PyTorch, with several recent large-scale design changes such as the variable-tensor merger \cite{pytorch_variable_tensor_merger}, having a profiler that does not have to be re-coded each time a new update arrives is a significant benefit. 
 \par 
 
+First, let us return to the two questions posed in section \ref{sec:tensors_in_pytorch}. Question (i) requires linking tensors to the locations of their device memory. To solve this, there is a fundamental structure in PyTorch known as a \textbf{DataPtr}. Defined in \texttt{c10/core/Allocator.h} in the source code, these structures are described as follows:
+\begin{quote}
+\enquote{
+A DataPtr is a unique pointer (with an attached deleter and some context for the deleter) to some memory, which also records what device is for its data.}
+\end{quote}
+The DataPtr of a tensor is saved in the \texttt{storage} object that the tensor points to, and can be accessed by calling \texttt{tensor.storage().data\_ptr()}. This also provides a way to determine if two tensors with different names actually share the same underlying memory, and thus should not be counted twice by the profiler. A hash table which maps the layer naming of a tensor to its DataPtr can be used by the profiler to keep track of tensors. It is important that this hash table \textbf{does not store a direct reference to the tensor itself}, since this would prevent the reference counting system from freeing it as expected, and thus increase the memory usage of the program. 
+\par 
 
+Question (ii) involves measuring the amount of memory used by a tensor. Unfortunately there is no direct way to do this, but a convenient calculation can be used instead. This is can be done by multiplying the number of elements by the size per element of a tensor. This information is spread out between the tensor and storage objects and can be computed as follows:
+\begin{lstlisting}[language=Python]
+total_memory = tensor.storage().size() * tensor.element_size()
+\end{lstlisting}
+The calculated total memory size can then be saved by the profiler and used by its algorithm. It is noted that, as mentioned in section \ref{sec:memory_caching}, allocations are rounded to 512 bytes and this must be taken into account by the profiler.
+\par 
+
+The proposed strategy involves creating a helper class which will do the memory profiling analysis. Users will be able to interface this profiler with their existing PyTorch code via a simple API, starting off by passing in their model instance. Once the profiler receives the model, it can access the model's \texttt{state\_dict} and determine the layer names and their underlying tensor data. This allows the profiler to determine the memory consumption of the weights.
+\par 
+
+Next, there must be a mechanism to analyze activations and gradients. Hooks are used for this purpose. Recall that there are many ways to use hooks, i.e. different types and also different ways to call each of these types. For activations, \texttt{register\_forward\_hook()} will internally be called on each of the layers. The function which is registered by the hook will inspect the activation output at the time it is being created, and measure its size in memory. This allows the profiler to directly measure how much device memory is being consumed by all the activations, broken down by layer name.
+\par 
+
+Gradients will also be analyzed with hooks, but this time by using \texttt{register\_backward\_hook()} on the model itself. This usage of the hooking mechanism will record all intermediate gradients that are calculated, not just the gradients for leaf nodes in the computational graph. The sizes of all these gradients will also be stored in the profiler's internal data structures.
+\par 
+
+Preliminary testing using this approach has been effective in capturing tensor data and determining memory usage.
+\par 
 
 %%%%%%%%% FUTURE WORK
 \section{Future Work}
 \label{future_work}
+A user-friendly and feature-complete profiler is still required. This requires combining the profiler components together, and further investigation about how to cleanly integrate the profiler with a user's PyTorch code. The current approach has been to insert a few API calls at specific sections of the training run - for example right before and after the \texttt{.backward()} call - which informs the user about the total memory usage of the program (including the cache), the total amount of the cache currently used by tensors, and a layer-by-layer breakdown of these tensors. The metrics gathered by the profiler must then be exported into graphs, which can be done using Matplotlib \cite{matplotlib}.
+\par
+
+Once
 % Create the program that pieces everything together, provides a nice interface with clean user options
 % Create graphs and stuff
 % Test it on real models
