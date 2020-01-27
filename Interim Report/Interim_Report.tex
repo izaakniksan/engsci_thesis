@@ -258,6 +258,7 @@ Given that this paper is concerned with the memory usage of PyTorch, two questio
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \cvprsubsection{Models in PyTorch}
+\label{sec:models_in_pytorch}
 Tensors can only get a user so far. Ultimately, machine learning researchers need an interface to codify their machine learning models, which can then be trained and used. The main interface used to do this in PyTorch is the \texttt{nn.Module} class. For example, Listing \ref{listing:nn.module_example} defines a simple two-layer network:
 \par 
 \begin{lstlisting}[language=Python, caption={Definition of a simple two-layer neural network from the PyTorch documentation \cite{pytorch_tutorial}}, label={listing:nn.module_example}]
@@ -285,7 +286,7 @@ class MyNetwork(torch.nn.Module):
         self.wont_be_registered=torch.tensor([1.0])
         self.will_be_registered=torch.nn.Parameter(torch.tensor([1.0]))
 \end{lstlisting}
-Here, one tensor is defined correctly and thus will forever be saved within a dictionary data structure in the PyTorch back end code. The other is not, and will not be added to this data structure. Wrapping a tensor in this way does not change any of its functionality. To verify this, an instance of the model is instantiated and then a built-in class function called \texttt{named\_parameters()} is invoked:
+Here, one tensor is defined correctly and thus will forever be saved in a special data structure by the PyTorch back end code. This data structure is called the \texttt{state\_dict}. The other is not, and will not be added to the \texttt{state\_dict}. Wrapping a tensor in this way does not change any of its functionality. To verify that tensors are being saved as expected, an instance of the model is instantiated and then a built-in class function called \texttt{named\_parameters()} is invoked to reveal the named items within the model's \texttt{state\_dict}:
 \begin{lstlisting}[language=Python]
 model=MyNetwork()
 for name,param in model.named_parameters():
@@ -300,7 +301,7 @@ The output is as follows:
 This convenient storage of layer names has many similarities to the one previously discussed in MXNet in section \ref{sec:Machine_Learning_Frameworks_and_Memory_Profiler}, and will serve to be useful in creating a new memory profiler for PyTorch given the mapping it provides between layer names and their data objects. 
 %%%%%%%%% PROGRESS TO DATE::Dynamic Computational Graphs and Autograd
 \cvprsubsection{Dynamic Computational Graphs and Autograd}
-The network definition in Listing \ref{listing:nn.module_example} has one other important definition, namely its \texttt{forward()} method. This method describes the exact sequence of calculations that will be undertaken during the forward pass of the network, both during training and inference. This example is trivial, and the backward pass procedure could be defined manually with some basic calculus and a few lines of code. However, modern neural networks are very complex and have detailed computational procedures that define their forward passes. Manually defining a backward pass each time would be an arduous and error-prone process, and thus a scalable system is required.
+The network definition in Listing \ref{listing:nn.module_example} has one other important definition, namely its \texttt{forward()} method. This method describes the exact sequence of calculations that will be undertaken during the forward pass of the network, both during training and inference. This example is trivial, and the backward pass procedure could be defined manually with some basic calculus and a few lines of code. However, modern neural networks are very complex and have detailed computational procedures that define their forward passes. Manually defining a backward pass each time would be an arduous and error-prone process, and thus a more scalable system is required.
 \par
 
 PyTorch uses \textbf{automatic differentiation} \cite{automatic_differentiation}, implemented within the \texttt{torch.autograd} package, to take care of this problem. Distinct from other algorithmic methods such as symbolic and numerical differentiation, automatic differentiation is founded on the observation that any arbitrary computer program can be decomposed into arithmetic operations ($+,-,*,\div$) and elementary functions ($log, sine, cosine, exp,$ etc.). Recursively applying the chain rule allows the program to calculate derivatives (subject of course to floating point precision errors) using only an order of $O(n)$ extra computation. In practice, the linear factor is typically small in magnitude, leading to only a small decrease in performance.
@@ -314,11 +315,16 @@ During each iteration, PyTorch will gradually create a computational graph \text
 Activations are the scalar outputs of network layers, and gradients are the derivatives necessary for backpropagation. To create a memory profiler, the tensors which represent these data structures must be properly accounted for. During the forward pass of training, activations are gradually computed and stored in PyTorch's memory cache. Then, during the backward pass, gradients are computed using these activations. Immediately after the backward pass, all of these intermediate tensors are no longer needed, and are cleared from the cache. At this point, only the gradients of \textbf{leaf tensors} \cite{pytorch_doc_leaf_requires_grad} of the computational graph - i.e. the ones ones which must be improved during the iteration - are kept in memory. These gradients can then be used by an optimizer (e.g. Adam) to take a step in the direction which reduces the loss function of the network.
 \par 
 
-This complicated set of procedures - where the total allocated memory routinely fluctuates throughout training, and where tensor memory is not even linked directly to \texttt{cudaMalloc()} calls but rather is simply taken and returned to a global cache - provides new challenges not faced when tracking the memory of a static graph framework. However, all hope is not lost
+This complicated set of procedures - where the total allocated memory routinely fluctuates throughout training, and where tensor memory is not even linked directly to \texttt{cudaMalloc()} calls but rather is simply taken and returned to a global cache - provides new challenges not faced when tracking the memory of a static graph framework. However, all hope is not lost, since PyTorch provides some hidden tools which help shed light on the forward and backward pass: \textbf{hooks}.
+\par 
 
-The \texttt{.grad} attribute of a tensor stores its gradient 
+There are several variants of hooks in PyTorch, but unfortunately they have very little documentation. Still, the insight they bring is valuable, despite the fact that most information about them is only found spread across the PyTorch forums \cite{pytorch_forum}. Hooks are \textit{functions} which can be registered on either a \texttt{nn.Module} or a \texttt{Tensor} object. Then, depending on the type of hook, at specific times either during the backward or forward pass these functions are called. These allow direct access to the intermediate activations and gradients at the time of their creation. There are three types of hooks: \texttt{register\_hook()}, \texttt{register\_forward\_hook()}, and \texttt{register\_backward\_hook()}. %Further complicating things, the behaviour of hooks differs depending on whether they are registered to a \texttt{nn.Module} or a \texttt{Tensor}.
+\par 
 
 
+
+
+%The \texttt{.grad} attribute of a tensor stores its gradient 
 % forward hook, backward hook
 % Previously, learnable was mentioned: what does it mean
 
@@ -327,7 +333,10 @@ The \texttt{.grad} attribute of a tensor stores its gradient
 \cvprsubsection{Creating the Profiler}
 % garbage collection? during a hook run garbage collection?
 %data pointers, size of memory
-In the face of all the internal complexities that have been outlined thus far, it should be clear that that new mechanisms
+In the face of all the internal complexities that have been outlined thus far, it should be clear that that new mechanisms must be created to profile PyTorch's device memory usage. The proposed memory layer-by-layer breakdown into weights, activations, and gradients is described below.
+\par 
+
+
 
 %%%%%%%%% FUTURE WORK
 \section{Future Work}
