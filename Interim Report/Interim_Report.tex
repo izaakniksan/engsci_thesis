@@ -36,11 +36,11 @@
 %\ifcvprfinal\pagestyle{empty}\fi
 \setcounter{page}{1}
 \begin{document}
-
+\pagenumbering{roman}
 %%%%%%%%% TITLE
 \title{\textbf{ESC499 Interim Report:\\ \textit{Profiling GPU Memory with PyTorch}}}
 
-\author{Author: Izaak Niksan\\
+\author{Author: Izaak Niksan (1002659777)\\
 %Department of Computer Science, University of Toronto\\
 %{\tt\small izaak.niksan@mail.utoronto.ca}\\
 Supervisor: Prof. Gennady Pekhimenko\\
@@ -48,8 +48,15 @@ Advisor: Hongyu Zhu
 }
 
 \maketitle
-%\thispagestyle{empty}
+\thispagestyle{empty}
 \newpage
+\tableofcontents
+\newpage
+
+\listoffigures
+\newpage 
+
+\pagenumbering{arabic}
 %%%%%%%%% INTRODUCTION
 \section{Introduction}
 Deep neural networks (DNNs) have a history dating back over half a century, with Donald Hebb's \enquote*{Hebbian Learning Rule} laying the foundations for modern techniques \cite{dnn_history}. In the proceeding years this approach was developed and improved, with notable developments by Rosenblatt (the first perceptron), Werbos (backpropagation), Jordan (Recurrent Neural Network), Hochreiter \& Schmidhuber (LSTM), and Hinton (Deep Belief Networks) \cite{dnn_history}. While this theoretical progression was occurring, the computational machinery required to actually implement these models was non-existent. In the last decade, the development of high-performance computing hardware - especially GPUs - has enabled many of these once-theoretical DNNs to be implemented in practice. Still, however, there remain bottlenecks which constrain implementations and therefore deeper insight into underlying resource usage is vital for further advancements in the field. Of these resources, GPU memory is among the most important to understand given its scarcity. \par 
