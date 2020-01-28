@@ -74,10 +74,10 @@ The gray lines in the diagram represent \textit{weights}, or the scaling coeffic
 
 The purple nodes represent \textit{neurons}, which take a weighted sum of input nodes and produce a scalar-valued output. Each neuron is a nonlinear function; the nonlinearity is important here because without it the universal approximator guarantees no longer apply. For example, each neuron might be the ReLU function $f(x)=max(x,0)$ which clips all negative values. The intermediate outputs of each layer are known as \textit{feature maps}. Notice how there are two layers of purple nodes here - this denotes that the model has two hidden layers. There can be an arbitrary number of hidden layers in a network, and while there is no standard for the number of layers required for a network to be considered a \enquote*{deep neural network}, it should have at least three. \par 
 
-Finally, the red nodes are the \textit{outputs}, which are the network's predictions based on the provided input data. In this example, each output node might be the one-hot-encoded representation of who likely wrote this sentence; a result close to 1 indicates a network's predicted output node. If $y_1$ is associated with Alice, $y_2$ with Bob, and $y_3$ with Charlie, then the output vector $[y_1,y_2,y_3]^T = [0.983,0.217,0.015]^T$ indicates that it was likely Alice's sentence.
+Finally, the red nodes are the \textit{outputs}, which are the network's predictions based on the provided input data. In this example, each output node might be the one-hot-encoded representation of who likely wrote the input sentence. The result closest to 1 here indicates a network's predicted output node. If $y_1$ is associated with Alice, $y_2$ with Bob, and $y_3$ with Charlie, then the output vector $[y_1,y_2,y_3]^T = [0.983,0.217,0.015]^T$ indicates that it was likely Alice's sentence.
 
 %%%%%%%%% BACKGROUND::GPUs and their application to DNNs
-\cvprsubsection{GPUs and their application to DNNs}
+\cvprsubsection{GPUs and Their Applications to DNNs}
 Graphics Processing Units (GPUs) are at the center of recent machine learning breakthroughs. It turns out that the computational workloads of neural networks are, in essence, sequences of matrix operations; as it was shown in the previous section, matrix multiplication is used to conveniently denote the application of scalar weights to the output of a neural network layer. GPUs can perform these computations orders of magnitude faster than CPUs due to the parallelism inherent in their design.  Figure \ref{fig:turing} shows the architecture of a modern GPU, which contains numerous computational cores (green).
 
 \begin{figure}[h]
@@ -109,7 +109,7 @@ NVIDIA conveniently provides the functionality to distribute a program's workloa
 
 %%%%%%%%% BACKGROUND::Inference and Training
 \cvprsubsection{Inference and Training}
-Neural networks are used in two modes: \textit{training} and \textit{inference}. While these two modes are closely related, they have certain key differences which ultimately affect the way they each interact with GPUs. A useful neural network must first be trained - this process involves iteratively improving the network's trainable parameters, i.e. weights, which are either initialized randomly or all to zero. Training can further be broken down into two steps: a \textit{forward pass} and a \textit{backward pass}. As it turns out, the forward pass is very similar to inference. Thus, the training of a neural network can be thought of as an extension of the inference process.
+Neural networks are used in two modes: \textit{training} and \textit{inference}. While these two modes are closely related, they have certain key differences which ultimately affect the way they each interact with GPUs. A useful neural network must first be trained - this process involves iteratively improving the network's trainable parameters (i.e. weights) which are either initialized randomly or all to zero. Training can further be broken down into two steps: a \textit{forward pass} and a \textit{backward pass}. As it turns out, the forward pass is very similar to inference. Thus, the training of a neural network can be thought of as an extension of the inference process.
 \par 
 
 Both inference and the forward pass of training accept some input data (in the Figure \ref{fig:feedforwardNN} example this would be $[x_1,x_2,x_3,x_4]^T$). These input nodes are passed through the network - whatever its specific topology may be - and transformed through compositions of weight scaling and nonlinear activation functions. Then, at the end of the network the outputs are produced. For inference, these final outputs are almost always the only thing that the user is interested in, since they are the meaningful interpretations of the input data. For the forward pass of training, however, more than just the final outputs must be kept; in fact, nearly all of the intermediate values that were used to propagate the data through the network must be kept for later stages of the training algorithm.
@@ -117,13 +117,13 @@ Both inference and the forward pass of training accept some input data (in the F
 
 %%%%%%%%% BACKGROUND::Backpropagation and Memory
 \cvprsubsection{Backpropagation and Memory}
-Once the forward pass of training has finished, the first step is to evaluate the outputs of the network based on how accurate their predictions were. These evaluations are done via a \textit{loss function}, which quantifies the difference between the network's outputs and the \textit{ground truth} of the input data (in most cases this refers to the \textit{correct} interpretation of the input data). Referring once again to the previous example, if it was known that Bob in fact wrote the sentence, then the network's output $[y_1,y_2,y_3]^T = [0.983,0.217,0.015]^T$ would be compared to the ground truth $[0,1,0]^T$ and produce a large loss function result, since $y_2$ was not close to 1 and $y_1$ was incorrectly close to 1. While loss functions are beyond the scope of this paper, more information on them can be found in Appendix \myworries{add loss appendix here}.
+Once the forward pass of training has finished, the first step is to evaluate the outputs of the network based on how accurate their predictions were. These evaluations are done via a \textit{loss function}, which quantifies the difference between the network's outputs and the \textit{ground truth} of the input data (in most cases this refers to the \textit{correct} interpretation of the input data). Referring once again to the previous example, if it was known that Bob in fact wrote the sentence, then the network's output $[y_1,y_2,y_3]^T = [0.983,0.217,0.015]^T$ would be compared to the ground truth $[0,1,0]^T$ and produce a large loss function result, since $y_2$ was not close to 1 and $y_1$ was incorrectly close to 1. While loss functions are beyond the scope of this paper, more information on them can be found in Appendix \ref{appendix:types_of_loss_functions}.
 \par
 
-Next comes perhaps the most important part of training - backpropagation. Originally gaining attraction in the late 1980s \cite{hinton_backpropagation}, backpropagation involves calculating the partial derivatives of the loss function with respect to each weight in the network by using the chain rule. These calculations require the intermediate outputs of each layer, which are generally kept in memory during the forward pass and held until they are needed. Once all the gradients in the network have been calculated, they can then be adjusted appropriately. It is this extra space requirement that lies at the heart of why GPU memory is an essential resource. As for how the weights are updated, there are many different algorithms known as \textit{optimizers} available \cite{optimizers} which can be employed. Gradient Descent, perhaps the most commonly known algorithm, is known as a first order optimization algorithm. It involves updating each weight in the network by a global scaling factor after all the gradients have been computed. Another popular algorithm is Adam \cite{adam}, which is known as a second order algorithm. Once again, the exact details of such algorithms are beyond the scope of this paper.
+Next comes perhaps the most important part of training - backpropagation. Originally gaining traction in the late 1980s \cite{hinton_backpropagation}, backpropagation involves calculating the partial derivatives of the loss function with respect to each weight in the network by using the chain rule. These calculations require the intermediate outputs of each layer, which are generally kept in memory during the forward pass and held until they are needed. Once all the gradients in the network have been calculated, they can then be adjusted appropriately. It is this extra space requirement that lies at the heart of why GPU memory is an essential resource. As for how the weights are updated, there are many different algorithms known as \textit{optimizers} available \cite{optimizers} which can be employed. Gradient Descent, perhaps the most ubiquitous optimization algorithm, is known as a first order optimization algorithm. It involves updating each weight in the network by a global scaling factor after all the gradients have been computed. Another popular algorithm is Adam \cite{adam}, which is known as a second order algorithm. Once again, the exact details of such algorithms are beyond the scope of this paper.
 \par
 
-Generally the training process is done with a training dataset, which should be an unbiased representation of what actual data looks like in the real world. For example, it is important that a speech to text model is not trained using only the speech of one person, otherwise the network would learn to recognize \textit{their} speech very well but would likely under perform when fed data from another person's speech. Training datasets are generally very large - for example, a commonly-used object detection dataset known as COCO \cite{COCO} has 330 000 images, and is 37.57 GB in size. This is far beyond the size of a typical GPU's memory. One implementation of Gradient Descent involves using mini-batches - uniform-size subsets which together comprise the entire dataset. Each example within a mini-batch has the training algorithm applied to it, and only once the entire mini-batch is completed are the weights updated based on the sum of all gradients. A breakdown of the entire training process is summarized in Figure \ref{fig:training_memory_breakdown}.
+Generally the training process is done with a training dataset, which should be an unbiased representation of what actual data looks like in the real world. For example, it is important that a speech to text model is not trained using only the speech of one person, otherwise the network would learn to recognize \textit{their} speech very well but would likely under perform when fed data from another person's speech. Training datasets are generally very large - for example, a commonly-used object detection dataset known as COCO \cite{COCO} has 330 000 images, and is 37.57 GB in size. This is far beyond the size of a typical GPU's memory. One implementation of Gradient Descent involves using mini-batches, which are uniform-size subsets which together comprise the entire dataset. Each example within a mini-batch has the training algorithm applied to it, and only once the entire mini-batch is completed are the weights updated based on the sum of all gradients. A breakdown of the entire training process is summarized in Figure \ref{fig:training_memory_breakdown}.
 \par
 
 \begin{figure}[ht]
@@ -182,7 +182,7 @@ The MXNet memory profiler's main challenge is linking symbol names to specific \
 %%%%%%%%% PROGRESS TO DATE
 \section{Progress to Date}
 \label{progress_to_date}
-Unlike the frameworks for which these memory profilers were created, PyTorch uses completely different memory management and computational graph strategies. In order to create a memory profiler for PyTorch, these differences must be investigated and thoroughly understood. This involves investigating both its front end (Python\footnote{While PyTorch does have a C++ front end as well, it is generally less user-friendly and not used as often}) and back end (C++) code implementations. \myworries{TALK ABOUT WHAT THE SECTION IS ABOUT}
+Unlike the frameworks for which these memory profilers were created, PyTorch uses completely different memory management and computational graph strategies. In order to create a memory profiler for PyTorch, these differences must be investigated and thoroughly understood. This involves investigating both its front end (Python\footnote{While PyTorch does have a C++ front end as well, it is generally less user-friendly and not used as often}) and back end (C++) code implementations. This section discusses the internals of PyTorch and how a memory profiler can be created.
 
 %%%%%%%%% PROGRESS TO DATE::Memory Caching
 \cvprsubsection{Memory Caching}
@@ -366,10 +366,10 @@ Preliminary testing using this approach has been effective in capturing tensor d
 %%%%%%%%% FUTURE WORK
 \section{Future Work}
 \label{future_work}
-A user-friendly and feature-complete profiler is still required. This requires combining the profiler components together, and further investigation about how to cleanly integrate the profiler with a user's PyTorch code. The current approach has been to insert a few API calls at specific sections of the training run - for example right before and after the \texttt{.backward()} call - which informs the user about the total memory usage of the program (including the cache), the total amount of the cache currently used by tensors, and a layer-by-layer breakdown of these tensors. The metrics gathered by the profiler must then be exported into graphs, which can be done using Matplotlib \cite{matplotlib}.
+A user-friendly and feature-complete profiler must be finalized. This requires combining the profiler components together, and further investigation about how to cleanly integrate the profiler with a user's PyTorch code. The current approach has been to insert a few API calls at specific sections of the training run - for example right before and after the \texttt{.backward()} call - which informs the user about the total memory usage of the program (including the cache), the total amount of the cache currently used by tensors, and a layer-by-layer breakdown of these tensors. Finally, the given the rising usage of distributed computing techniques by the community, functionality to determine a device-by-device memory breakdown is needed. This is a straightforward extension of existing methods used by this profiler. The metrics gathered by the profiler must then be exported into visual graphs, which can be done using Matplotlib \cite{matplotlib}.
 \par
 
-Once
+Once the profiler has been completed, it will be used to investigate the memory usage of current models. This application of the profiler to real-world use cases will comprise the remainder of the project.
 % Create the program that pieces everything together, provides a nice interface with clean user options
 % Create graphs and stuff
 % Test it on real models
@@ -381,10 +381,20 @@ Once
 \label{appendix:types_of_networks}
 \begin{figure}[ht]
 \centering
-\includegraphics[width=0.8\textwidth]{types_of_NN.png}
+\includegraphics[width=0.75\textwidth]{types_of_NN.png}
 %\captionsetup{width=0.7\linewidth}
 %\caption{ \cite{types_of_NN_pic}}
 \end{figure}
+\begin{center}A guide to common types of neural networks, created by van Vleen \cite{types_of_NN_pic}.\end{center}
+\newpage
+
+\section{Types of Loss Functions}
+\label{appendix:types_of_loss_functions}
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.8\textwidth]{loss_functions.png}
+\end{figure}
+\begin{center}A guide to loss functions, created by Janocha and Czarnecki \cite{loss_functions_paper}.\end{center}
 \end{appendices}
 
 
