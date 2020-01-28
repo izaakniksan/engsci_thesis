@@ -59,7 +59,8 @@ Advisor: Hongyu Zhu
 \pagenumbering{arabic}
 %%%%%%%%% INTRODUCTION
 \section{Introduction}
-Deep neural networks (DNNs) have a history dating back over half a century, with Donald Hebb's \enquote*{Hebbian Learning Rule} laying the foundations for modern techniques \cite{dnn_history}. In the proceeding years this approach was developed and improved, with notable developments by Rosenblatt (the first perceptron), Werbos (backpropagation), Jordan (Recurrent Neural Network), Hochreiter \& Schmidhuber (LSTM), and Hinton (Deep Belief Networks) \cite{dnn_history}. While this theoretical progression was occurring, the computational machinery required to actually implement these models was non-existent. In the last decade, the development of high-performance computing hardware - especially GPUs - has enabled many of these once-theoretical DNNs to be implemented in practice. Still, however, there remain bottlenecks which constrain implementations and therefore deeper insight into underlying resource usage is vital for further advancements in the field. Of these resources, GPU memory is among the most important to understand given its scarcity. \par 
+Deep neural networks (DNNs) have a history dating back over half a century, with Donald Hebb's \enquote*{Hebbian Learning Rule} laying the foundations for modern techniques \cite{dnn_history}. In the proceeding years this approach was developed and improved, with notable developments by Rosenblatt (the first perceptron), Werbos (backpropagation), Jordan (Recurrent Neural Network), Hochreiter \& Schmidhuber (LSTM), and Hinton (Deep Belief Networks) \cite{dnn_history}. While this theoretical progression was occurring, the computational machinery required to actually implement these models was non-existent. In the last decade, the development of high-performance computing hardware - especially GPUs - has enabled many of these once-theoretical DNNs to be implemented in practice. Still, however, there remain bottlenecks which constrain implementations and therefore deeper insight into underlying resource usage is vital for further advancements in the field. Of these resources, GPU memory is among the most important to understand given its scarcity. By developing a memory profiler for PyTorch, the largest-growing machine learning framework, the community of researchers would better understand the performance of their network implementations.
+\par 
 
 \section{Background}
 %%%%%%%%% BACKGROUND::Neural Networks
@@ -154,7 +155,7 @@ All of these machine learning frameworks employ directed acyclic \textit{computa
 \centering
 \includegraphics[width=.7\textwidth]{computational_graph_example.png}
 \captionsetup{width=0.7\linewidth}
-\caption{A simple computational graph \cite{computational_graph_example} which calculates $\frac{\partial e}{\partial b}$}
+\caption{A simple computational graph \cite{computational_graph_example}}
 \label{fig:computational_graph}
 \end{figure}
 
@@ -370,7 +371,7 @@ Once the profiler has been completed, it will be used to investigate the memory 
 \centering
 \includegraphics[width=.9\textwidth]{remaining_work_schedule.png}
 \captionsetup{width=0.7\linewidth}
-\caption{Timeline for remainder of thesis project}
+\caption{Remaining timeline}
 \label{fig:thesis_timeline}
 \end{figure}
 
