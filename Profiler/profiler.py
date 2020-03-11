@@ -5,12 +5,14 @@ class memory_profiler:
     def __init__(self,model):
         self.model=model
         self.activation_data_pointers={}
+        self.memory_used_by_feature_maps=0
+        self.gradient_data_pointers={}
+        self.memory_used_by_gradients=0
 
         # Gather the named parameters of the model (i.e. layers)
         self.gather_named_parameters()
 
         # Feature maps:
-        self.memory_used_by_feature_maps=0
         for name, layer in self.model._modules.items():
             layer.register_forward_hook(self.forward_hook)
             self.recursive_hooks(layer)
@@ -47,33 +49,46 @@ class memory_profiler:
             self.recursive_hooks(layer)
 
     def forward_hook(self,m, i, o):
+        '''
+        The hook function to be registered on each module
+
+        Parameters:
+            m: module (i.e. layer)
+            i: tuple of input activation tensors
+            o: output activation tensor
+        '''
         if getDataPtr(o) not in self.activation_data_pointers:
             self.activation_data_pointers[getDataPtr(o)]=""
             self.memory_used_by_feature_maps+=getTensorSize(o,scale="B")
 
-        #print(f"forward_hook called with o={o}, with size={getTensorSizeMB(o)}")
 
-    def backwards_hook(self, module, in_grads, out_grads):
+    def backwards_hook(self, m, in_grads, out_grads):
         """
         Registers hooks for the backward pass. By calling this as:
             model.register_backward_hook(self.backwards_hook)
         all intermediate gradients are registered as well, and not just
         the gradients of leaf nodes in the computational graph.
         https://discuss.pytorch.org/t/using-hook-function-to-save-gradients/4334
-        """
-        inputs=[] #(data_ptr, mem_size)
-        outputs=[] #(data_ptr, mem_size)
+
+        Intermediate gradient tensors are accumulated in C++ buffers, and are only exposed to Python by using hooks.
+        https://discuss.pytorch.org/t/how-the-hook-works/2222
+
+        Parameters:
+            m: module (i.e. layer)
+            in_grads: input gradients
+            out_grads: output gradients
+
+        """       
+
         for t in in_grads:
-            in_grad_mem=getTensorSize(t)
-            in_grad_data_ptr=getDataPtr(t)
-            inputs.append((in_grad_data_ptr, in_grad_mem))
+            if getDataPtr(t) not in self.gradient_data_pointers:
+                self.gradient_data_pointers[getDataPtr(t)]=""
+                self.memory_used_by_gradients+=getTensorSize(t,scale="B")
 
         for t in out_grads:
-            out_grad_mem=getTensorSize(t)
-            out_grad_data_ptr=getDataPtr(t)
-            outputs.append((out_grad_data_ptr, out_grad_mem))
-
-        print(f"backwards_hook called inputs={inputs}, outputs={outputs}")
+            if getDataPtr(t) not in self.gradient_data_pointers:
+                self.gradient_data_pointers[getDataPtr(t)]=""
+                self.memory_used_by_gradients+=getTensorSize(t,scale="B")
 
     def print_stats(self):
         """
@@ -87,11 +102,16 @@ class memory_profiler:
             f"Current allocated={MB(torch.cuda.memory_allocated())}, "
             f"Peak cached={MB(torch.cuda.max_memory_cached())}, "
             f"Current cached={MB(torch.cuda.memory_cached())}, "
-            f"Layer usage={self.total_layer_mem_MB()},"
-            f"Activation usage={MB(self.memory_used_by_feature_maps)}"
+            f"Layer usage={self.total_layer_mem_MB()}, "
+            f"Activation usage={MB(self.memory_used_by_feature_maps)}, "
+            f"Gradient usage={MB(self.memory_used_by_gradients)}"
             )
+        
+        # Reset computed memories after each iteration
         self.activation_data_pointers={}
         self.memory_used_by_feature_maps=0
+        self.gradient_data_pointers={}
+        self.memory_used_by_gradients=0
 
 
 def getDataPtr(tensor):
