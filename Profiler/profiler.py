@@ -25,6 +25,7 @@ class memory_profiler:
         # Print stats every period of iterations
         self.print_period=print_period
         self.iteration=0
+        self.epoch=1
 
         # Gather the named parameters of the model (i.e. layers)
         self.gather_named_parameters()
@@ -62,6 +63,7 @@ class memory_profiler:
             self.params[dp]["tensor"]=param # The actual tensor
             self.params[dp]["size"]=getTensorSize(param,scale="B")
             self.params[dp]["name"]=name #user-specified name
+            self.params[dp]["grad_size"]=0
 
     def total_layer_mem_MB(self):
         """
@@ -103,11 +105,20 @@ class memory_profiler:
         https://discuss.pytorch.org/t/how-the-hook-works/2222
 
         Parameters:
-            m: module (i.e. layer)
+            m: module
             in_grads: input gradients
             out_grads: output gradients
 
-        """       
+        """
+        # First, inspect the .grad of each module parameter
+        for dp in self.params:
+            t=self.params[dp]['tensor']
+            if t.grad is not None and getDataPtr(t.grad) not in self.gradient_data_pointers:
+                self.gradient_data_pointers.add(getDataPtr(t.grad))
+                self.memory_used_by_gradients+=getTensorSize(t.grad,scale="B")
+                self.params[dp]["grad_size"]+=getTensorSize(t.grad,scale="B")
+                #print(f"Caugt a .grad! {self.params[dp]['name']}.grad is size {self.params[dp]['grad_size']}")
+
         for t in in_grads:
             if getDataPtr(t) not in self.gradient_data_pointers:
                 self.gradient_data_pointers.add(getDataPtr(t))
@@ -117,6 +128,8 @@ class memory_profiler:
             if getDataPtr(t) not in self.gradient_data_pointers:
                 self.gradient_data_pointers.add(getDataPtr(t))
                 self.memory_used_by_gradients+=getTensorSize(t,scale="B")
+        
+
 
     def record_stats(self):
         """
@@ -128,16 +141,16 @@ class memory_profiler:
         Note: torch.cuda.max_memory_cached() and torch.cuda.memory_cached() are deprecated in later versions, replaced by torch.cuda.max_memory_reserved() and torch.cuda.memory_reserved().
         """
         self.iteration+=1
-        self.gather_named_parameters() # Re-gather the layers
         
         if self.iteration % self.print_period == 0:
             self.print_info_table()
+        
+        # # Reset computed memories after each iteration
+        # self.activation_data_pointers=set()
+        # self.memory_used_by_feature_maps=0
+        # self.gradient_data_pointers=set()
+        # self.memory_used_by_gradients=0
 
-        # Reset computed memories after each iteration
-        self.activation_data_pointers=set()
-        self.memory_used_by_feature_maps=0
-        self.gradient_data_pointers=set()
-        self.memory_used_by_gradients=0
 
     def print_info_single_line(self):
         s=""
@@ -160,21 +173,40 @@ class memory_profiler:
         
         dash = '-' * 44
         print("\n"+dash)
-        print("Memory Usage for Iteration ",self.iteration)
+        print("Memory Usage for Iteration",self.iteration, "of epoch",self.epoch)
         print(dash)
 
         print('{:.<35s}{:.>5d} MB'.format("Peak allocated", MB(torch.cuda.max_memory_allocated())))
         #print('{:.<35s}{:.>5d} MB'.format("Current allocated", MB(torch.cuda.memory_allocated())))
         print('{:.<35s}{:.>5d} MB'.format("Peak cached", MB(torch.cuda.max_memory_cached())))
         print('{:.<35s}{:.>5d} MB'.format("Current cached", MB(torch.cuda.memory_cached())))
-        print('{:.<35s}{:.>5d} MB'.format("Total layer usage", self.total_layer_mem_MB()))
         print('{:.<35s}{:.>5d} MB'.format("Activation usage", MB(self.memory_used_by_feature_maps)))
-        print('{:.<35s}{:.>5d} MB'.format("Gradient usage", MB(self.memory_used_by_gradients)))
         
         # Layer-by-layer weight breakdown
+        print('\n{:.<35s}{:.>5d} MB'.format("Total weight usage", self.total_layer_mem_MB()))
         for dp in self.params:
-            print('{:.<35s}{:.>5d} MB'.format(self.params[dp]["name"], MB(self.params[dp]["size"])))
-        
+            print('{:<2s}{:.<33s}{:.>5d} MB'.format('',self.params[dp]["name"], MB(self.params[dp]["size"])))
+
+        # Layer-by-layer gradient breakdown
+        unnamed_gradient_mem=self.memory_used_by_gradients
+        print('\n{:.<35s}{:.>5d} MB'.format("Total gradient usage", MB(self.memory_used_by_gradients)))
+        for dp in self.params:
+            print('{:<2s}{:.<33s}{:.>5d} MB'.format('',self.params[dp]["name"] + " grad", MB(self.params[dp]["grad_size"])))
+            unnamed_gradient_mem-=self.params[dp]["grad_size"]
+        print('{:<2s}{:.<33s}{:.>5d} MB'.format('',"Intermediate grads", MB(unnamed_gradient_mem)))
+            
+    
+    def epoch_end(self):
+        print(f"Epoch {self.epoch} finished")
+        self.activation_data_pointers=set()
+        self.memory_used_by_feature_maps=0
+        self.gradient_data_pointers=set()
+        self.memory_used_by_gradients=0
+        self.iteration=0
+        self.epoch+=1
+        for dp in self.params:
+            self.params[dp]["grad_size"]=0
+
 
 def getDataPtr(tensor):
     """
