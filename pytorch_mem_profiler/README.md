@@ -68,7 +68,7 @@ for epoch in range(num_epochs):
     profiler.epoch_end()
 ```
 
-The results will be printed as the training progresses. Since PyTorch uses a [memory caching](https://pytorch.org/docs/stable/notes/cuda.html#memory-management) strategy, tensors dynamically take and release from the GPU memory cache. The profiler will give you insight into the cache size, as well as a detailed layer-by-layer breakdown of what the memory is being being used for:
+The results will be printed as the training progresses. Since PyTorch uses a [memory caching](https://pytorch.org/docs/stable/notes/cuda.html#memory-management) strategy, tensors dynamically take and release from the GPU memory cache. The profiler will give you insight into the cache size, as well as a detailed layer-by-layer breakdown of what the memory is being used for:
 
 ```
 --------------------------------------------

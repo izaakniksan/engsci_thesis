@@ -124,6 +124,11 @@ class memory_profiler:
         if getDataPtr(o) not in self.activation_data_pointers:
             self.activation_data_pointers.add(getDataPtr(o))
             self.memory_used_by_feature_maps+=getTensorSize(o,scale="B")
+        
+        for input_t in i:
+            if getDataPtr(input_t) not in self.activation_data_pointers:
+                self.activation_data_pointers.add(getDataPtr(input_t))
+                self.memory_used_by_feature_maps+=getTensorSize(input_t,scale="B")
 
 
     def backwards_hook(self, m, in_grads, out_grads):
