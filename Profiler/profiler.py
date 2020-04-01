@@ -1,4 +1,3 @@
-import gc
 import torch
 from datetime import datetime
 import os
@@ -15,7 +14,7 @@ class memory_profiler:
             print_period : Integer >=1
                 Indicates the number of iterations between reporting
                 of memory diagnostics. For example, print_period = 5 
-                would  report every 5 iterations.
+                would report every 5 iterations.
 
             csv : Boolean
                 Indicates whether to report memory diagnostics to 
@@ -43,9 +42,10 @@ class memory_profiler:
         # Gather the named parameters of the model (i.e. layers)
         self.gather_named_parameters()
 
-        # Feature maps:
+        # Register hooks for feature maps:
         for name, layer in self.model._modules.items():
             layer.register_forward_hook(self.forward_hook)
+            # In case there are submodules, register them as well
             self.recursive_hooks(layer)
 
         # Register hooks for gradients
@@ -79,20 +79,21 @@ class memory_profiler:
         """
         Gathers named_parameters from the model.
         """
-        self.params={} # data_pointer -> {"tensor","size","name"}
+        # TODO: look into recursively registering submodules
+        self.params={} # dp -> {"tensor","size","name","grad_size"}
         for name,param in self.model.named_parameters():
             dp=getDataPtr(param)
             self.params[dp]={}
             self.params[dp]["tensor"]=param # The actual tensor
             self.params[dp]["size"]=getTensorSize(param,scale="B")
-            self.params[dp]["name"]=name #user-specified name
-            self.params[dp]["grad_size"]=0
+            self.params[dp]["name"]=name # user-specified name
+            self.params[dp]["grad_size"]=0 # mem of gradient (.grad)
 
 
     def total_layer_mem_MB(self):
         """
         Calculates the total memory usage of all the named 
-        parameters in self.params
+        parameters in self.params (weights)
         """
         r=0
         for dp in self.params:
@@ -101,8 +102,12 @@ class memory_profiler:
 
 
     def recursive_hooks(self, layer):
+        '''
+        Recursively register forward hooks in all submodules
+        of the model. This ensures every activation is accounted
+        for during the forward pass.
+        '''
         for name, layer in layer._modules.items():
-            # We recursively register hooks on all layers
             layer.register_forward_hook(self.forward_hook)
             self.recursive_hooks(layer)
 
@@ -146,13 +151,14 @@ class memory_profiler:
                 self.gradient_data_pointers.add(getDataPtr(t.grad))
                 self.memory_used_by_gradients+=getTensorSize(t.grad,scale="B")
                 self.params[dp]["grad_size"]+=getTensorSize(t.grad,scale="B")
-                #print(f"Caugt a .grad! {self.params[dp]['name']}.grad is size {self.params[dp]['grad_size']}")
 
+        # Inspect the input grads to this submodule
         for t in in_grads:
             if getDataPtr(t) not in self.gradient_data_pointers:
                 self.gradient_data_pointers.add(getDataPtr(t))
                 self.memory_used_by_gradients+=getTensorSize(t,scale="B")
 
+        # Inspect the output grads to this submodule
         for t in out_grads:
             if getDataPtr(t) not in self.gradient_data_pointers:
                 self.gradient_data_pointers.add(getDataPtr(t))
@@ -161,9 +167,10 @@ class memory_profiler:
 
     def record_stats(self):
         """
-        Record statistics about memory usage every print_period
-        iterations.
-        If csv logging is enabled, then also output to a .csv file.
+        To be called by the user after every iteration. This function
+        records statistics about memory usage every print_period
+        iterations. If csv logging is enabled, then this also outputs
+        memory statistics to a .csv file.
 
         Note: 
         torch.cuda.max_memory_cached() and 
@@ -196,8 +203,13 @@ class memory_profiler:
         When PyTorch is imported, it will immediately consume some 
         memory (on the order of a few hundred MB) which is not 
         attributable to any relevant parts of the model.
+
+        Note: 
+        torch.cuda.max_memory_cached() and 
+        torch.cuda.memory_cached() are deprecated in later versions,
+        replaced by torch.cuda.max_memory_reserved() and 
+        torch.cuda.memory_reserved().
         """
-        
         dash = '*' * 43
         print("\n"+dash)
         print("Memory Usage for Iteration", self.iteration, "of Epoch", self.epoch)
@@ -222,6 +234,7 @@ class memory_profiler:
             self.unnamed_gradient_mem-=self.params[dp]["grad_size"]
         print('{:<2s}{:.<33s}{:.>5d} MB'.format('',"Intermediate grads", MB(self.unnamed_gradient_mem)))
     
+
     def write_info_csv(self):
         """
         Prints memory diagnostics info to a .csv file. 
@@ -229,6 +242,12 @@ class memory_profiler:
         print_info_table().
 
         All values are in MB.
+
+        Note: 
+        torch.cuda.max_memory_cached() and 
+        torch.cuda.memory_cached() are deprecated in later versions,
+        replaced by torch.cuda.max_memory_reserved() and 
+        torch.cuda.memory_reserved().
         """
         s=str(self.epoch) + ","
         s+=str(self.iteration) + ","
@@ -248,6 +267,9 @@ class memory_profiler:
             
     
     def epoch_end(self):
+        '''
+        To be called by the user after each epoch is finished.
+        '''
         print(f"Epoch {self.epoch} finished")
         self.activation_data_pointers=set()
         self.memory_used_by_feature_maps=0
@@ -262,9 +284,13 @@ class memory_profiler:
 def getDataPtr(tensor):
     """
     Get the data pointer of a tensor. The data pointer is used to 
-    uniquely identify a tensor in memory.
+    uniquely identify a tensor in memory. If a reference to the actual
+    tensor were stored by the profiler, then PyTorch's reference 
+    counting memory management system would not free tensors when
+    the model is no longer using them.
     """
     return tensor.storage().data_ptr()
+
 
 def getTensorSize(tensor, scale="MB"):
     """
@@ -279,6 +305,7 @@ def getTensorSize(tensor, scale="MB"):
         return memory_size
     print(f"ERROR: unknown scale in getTensorSize: {scale}")
     exit()
+
 
 def MB(B):
     """
