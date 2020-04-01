@@ -16,14 +16,14 @@ CUDA (any version, as long as your training code uses it)
 
 ### Installation
 There is nothing to install to use this memory profiler, but you must ensure that you import it correctly. After cloning this directory, add it to your path in your training code as follows:
-```
+```Python
 import sys
 sys.path.append('<path to pytorch_mem_profiler/ directory>')
 from pytorch_mem_profiler import *
 ```
 
 For example, the second line above might be:
-```
+```Python
 sys.path.append('./pytorch_mem_profiler/')
 ```
 
