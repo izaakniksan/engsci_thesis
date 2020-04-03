@@ -13,6 +13,8 @@
 \usepackage{caption}
 \usepackage{python_code}
 \usepackage{enumitem}   
+\usepackage{pdfpages}
+\usepackage{booktabs,xltabular}
 % Include other packages here, before hyperref.
 
 % If you comment hyperref and then uncomment it, you should delete
@@ -38,18 +40,9 @@
 \begin{document}
 \pagenumbering{roman}
 %%%%%%%%% TITLE
-\title{\textbf{ESC499 Final Report:\\ \textit{Profiling GPU Memory with PyTorch}}}
-
-\author{Author: Izaak Niksan (1002659777)\\
-%Department of Computer Science, University of Toronto\\
-%{\tt\small izaak.niksan@mail.utoronto.ca}\\
-Supervisor: Prof. Gennady Pekhimenko\\
-Advisor: Hongyu Zhu
-}
-
-\maketitle
 \thispagestyle{empty}
-\newpage
+\includepdf[pages=-,pagecommand={},width=\paperwidth]{thesis_cover_blank_title.pdf}
+\clearpage
 \tableofcontents
 \newpage
 
@@ -375,6 +368,15 @@ Once the profiler has been completed, it will be used to investigate the memory 
 \label{fig:thesis_timeline}
 \end{figure}
 
+
+
+
+%%%%%% csv stuff
+
+
+
+
+
 %%%%%%%%% APPENDIX
 \newpage
 \begin{appendices}
@@ -396,10 +398,99 @@ Once the profiler has been completed, it will be used to investigate the memory 
 \includegraphics[width=0.8\textwidth]{loss_functions.png}
 \end{figure}
 \begin{center}A guide to loss functions, created by Janocha and Czarnecki \cite{loss_functions_paper}.\end{center}
+\newpage
+
+%%%%%% APPENDIX: Resnet 50
+\section{Detailed ResNet-50 Memory Statistics}
+Given the large number of parameters of the ResNet-50 model, only the layer-by-layer breakdown for a batch size of 32 is presented. Training was done using a single NVIDIA GeForce GTX 1080 Ti GPU. All values are rounded to the nearest MB, and were taken directly from the profiler's csv output. In the interest of space, only non-zero values are shown.
+\begin{longtable}{@{}ll@{}}
+\toprule
+\textbf{peak\_cached}                              & \textbf{5475} \\ \midrule
+\textbf{total\_activation\_usage}                  & \textbf{5219} \\ \midrule
+\textbf{total\_weight\_usage }                     & \textbf{102}  \\ \midrule
+module.layer2.0.conv2.weight              & 1    \\ \midrule
+module.layer2.0.downsample.0.weight       & 1    \\ \midrule
+module.layer2.1.conv2.weight              & 1    \\ \midrule
+module.layer2.2.conv2.weight              & 1    \\ \midrule
+module.layer2.3.conv2.weight              & 1    \\ \midrule
+module.layer3.0.conv1.weight              & 1    \\ \midrule
+module.layer3.0.conv2.weight              & 2    \\ \midrule
+module.layer3.0.conv3.weight              & 1    \\ \midrule
+module.layer3.0.downsample.0.weight       & 2    \\ \midrule
+module.layer3.1.conv1.weight              & 1    \\ \midrule
+module.layer3.1.conv2.weight              & 2    \\ \midrule
+module.layer3.1.conv3.weight              & 1    \\ \midrule
+module.layer3.2.conv1.weight              & 1    \\ \midrule
+module.layer3.2.conv2.weight              & 2    \\ \midrule
+module.layer3.2.conv3.weight              & 1    \\ \midrule
+module.layer3.3.conv1.weight              & 1    \\ \midrule
+module.layer3.3.conv2.weight              & 2    \\ \midrule
+module.layer3.3.conv3.weight              & 1    \\ \midrule
+module.layer3.4.conv1.weight              & 1    \\ \midrule
+module.layer3.4.conv2.weight              & 2    \\ \midrule
+module.layer3.4.conv3.weight              & 1    \\ \midrule
+module.layer3.5.conv1.weight              & 1    \\ \midrule
+module.layer3.5.conv2.weight              & 2    \\ \midrule
+module.layer3.5.conv3.weight              & 1    \\ \midrule
+module.layer4.0.conv1.weight              & 2    \\ \midrule
+module.layer4.0.conv2.weight              & 9    \\ \midrule
+module.layer4.0.conv3.weight              & 4    \\ \midrule
+module.layer4.0.downsample.0.weight       & 8    \\ \midrule
+module.layer4.1.conv1.weight              & 4    \\ \midrule
+module.layer4.1.conv2.weight              & 9    \\ \midrule
+module.layer4.1.conv3.weight              & 4    \\ \midrule
+module.layer4.2.conv1.weight              & 4    \\ \midrule
+module.layer4.2.conv2.weight              & 9    \\ \midrule
+module.layer4.2.conv3.weight              & 4    \\ \midrule
+module.fc.weight                          & 8    \\ \midrule
+                                          &      \\ \midrule
+\textbf{total\_gradient\_usage}           & \textbf{120}  \\ \midrule
+module.layer2.0.conv2.weight\_grad        & 1    \\ \midrule
+module.layer2.0.downsample.0.weight\_grad & 1    \\ \midrule
+module.layer2.1.conv2.weight\_grad        & 1    \\ \midrule
+module.layer2.2.conv2.weight\_grad        & 1    \\ \midrule
+module.layer2.3.conv2.weight\_grad        & 1    \\ \midrule
+module.layer3.0.conv1.weight\_grad        & 1    \\ \midrule
+module.layer3.0.conv2.weight\_grad        & 2    \\ \midrule
+module.layer3.0.conv3.weight\_grad        & 1    \\ \midrule
+module.layer3.0.downsample.0.weight\_grad & 2    \\ \midrule
+module.layer3.1.conv1.weight\_grad        & 1    \\ \midrule
+module.layer3.1.conv2.weight\_grad        & 2    \\ \midrule
+module.layer3.1.conv3.weight\_grad        & 1    \\ \midrule
+module.layer3.2.conv1.weight\_grad        & 1    \\ \midrule
+module.layer3.2.conv2.weight\_grad        & 2    \\ \midrule
+module.layer3.2.conv3.weight\_grad        & 1    \\ \midrule
+module.layer3.3.conv1.weight\_grad        & 1    \\ \midrule
+module.layer3.3.conv2.weight\_grad        & 2    \\ \midrule
+module.layer3.3.conv3.weight\_grad        & 1    \\ \midrule
+module.layer3.4.conv1.weight\_grad        & 1    \\ \midrule
+module.layer3.4.conv2.weight\_grad        & 2    \\ \midrule
+module.layer3.4.conv3.weight\_grad        & 1    \\ \midrule
+module.layer3.5.conv1.weight\_grad        & 1    \\ \midrule
+module.layer3.5.conv2.weight\_grad        & 2    \\ \midrule
+module.layer3.5.conv3.weight\_grad        & 1    \\ \midrule
+module.layer4.0.conv1.weight\_grad        & 2    \\ \midrule
+module.layer4.0.conv2.weight\_grad        & 9    \\ \midrule
+module.layer4.0.conv3.weight\_grad        & 4    \\ \midrule
+module.layer4.0.downsample.0.weight\_grad & 8    \\ \midrule
+module.layer4.1.conv1.weight\_grad        & 4    \\ \midrule
+module.layer4.1.conv2.weight\_grad        & 9    \\ \midrule
+module.layer4.1.conv3.weight\_grad        & 4    \\ \midrule
+module.layer4.2.conv1.weight\_grad        & 4    \\ \midrule
+module.layer4.2.conv2.weight\_grad        & 9    \\ \midrule
+module.layer4.2.conv3.weight\_grad        & 4    \\ \midrule
+intermediate\_grads                       & 26   \\ \bottomrule
+\end{longtable}
+\newpage
 \end{appendices}
 
 
+
+
+
 %% TODO: get list of loss and activation functions and add them to appendix, then \ref them in the paper
+
+
 
 %%%%%%%%% REFERENCES
 \newpage
