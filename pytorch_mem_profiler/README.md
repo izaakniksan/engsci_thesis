@@ -31,7 +31,7 @@ And that's it! You are now ready to start profiling your models.
 
 ## Usage
 
-There only three steps (and only three lines of code) needed to use the profiler:
+There only three steps (and only four lines of code) needed to use the profiler:
 
 * Create a profiler instance
 * Call ```.record_stats()``` after every iteration
@@ -48,9 +48,10 @@ Next, we initialize an instance of the ```memory_profiler``` class before we sta
 
 >```csv``` (boolean) allows profiling data to also be exported into a .csv file located in ```./memory_csv_data/``` . Default is False.
 
-Below, we initialize the profiler, which will report memory statistics every 5 iterations to the terminal and to a .csv file.
+Below, we initialize the profiler, which will report memory statistics every 5 iterations to the terminal and to a .csv file. The global keyword ensures that the profiler is accessible anywhere within the training program. Ensure that the profiler is initialized right before the training loop.
 
 ```Python
+global profiler
 profiler = memory_profiler(model, print_period=5, csv=True)
 ```
 
@@ -71,19 +72,18 @@ for epoch in range(num_epochs):
 The results will be printed as the training progresses. Since PyTorch uses a [memory caching](https://pytorch.org/docs/stable/notes/cuda.html#memory-management) strategy, tensors dynamically take and release from the GPU memory cache. The profiler will give you insight into the cache size, as well as a detailed layer-by-layer breakdown of what the memory is being used for:
 
 ```
---------------------------------------------
-Memory Usage for Iteration 65 of epoch 1
---------------------------------------------
-Peak allocated.......................598 MB
-Peak cached..........................620 MB
-Current cached.......................620 MB
-Total activation usage................24 MB
+*******************************************
+Memory Usage for Iteration 85 of Epoch 1
+*******************************************
+Peak cached..........................857 MB
+Current cached.......................857 MB
+Total activation usage...............301 MB
 
 Total weight usage...................127 MB
   mf_user_embed.weight................35 MB
-  mf_item_embed.weight.................6 MB
-  mlp_user_embed.weight...............70 MB
-  mlp_item_embed.weight...............13 MB
+  mf_item_embed.weight.................7 MB
+  mlp_user_embed.weight...............71 MB
+  mlp_item_embed.weight...............14 MB
   mlp.0.weight.........................0 MB
   mlp.0.bias...........................0 MB
   mlp.1.weight.........................0 MB
@@ -93,11 +93,11 @@ Total weight usage...................127 MB
   final.weight.........................0 MB
   final.bias...........................0 MB
 
-Total gradient usage.................123 MB
+Total gradient usage.................161 MB
   mf_user_embed.weight grad...........35 MB
-  mf_item_embed.weight grad............0 MB
-  mlp_user_embed.weight grad..........70 MB
-  mlp_item_embed.weight grad..........13 MB
+  mf_item_embed.weight grad............7 MB
+  mlp_user_embed.weight grad..........71 MB
+  mlp_item_embed.weight grad..........14 MB
   mlp.0.weight grad....................0 MB
   mlp.0.bias grad......................0 MB
   mlp.1.weight grad....................0 MB
@@ -106,7 +106,5 @@ Total gradient usage.................123 MB
   mlp.2.bias grad......................0 MB
   final.weight grad....................0 MB
   final.bias grad......................0 MB
-  Intermediate grads...................3 MB
+  Intermediate grads..................34 MB
 ```
-
-* Note: a few hundred MB will always be reserved for the PyTorch framework itself.

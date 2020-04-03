@@ -40,16 +40,16 @@ class memory_profiler:
         self.epoch=1
 
         # Gather the named parameters of the model (i.e. layers)
-        self.gather_named_parameters()
+        self.__gather_named_parameters()
 
         # Register hooks for feature maps:
         for name, layer in self.model._modules.items():
-            layer.register_forward_hook(self.forward_hook)
+            layer.register_forward_hook(self.__forward_hook)
             # In case there are submodules, register them as well
-            self.recursive_hooks(layer)
+            self.__recursive_hooks(layer)
 
         # Register hooks for gradients
-        self.model.register_backward_hook(self.backwards_hook)
+        self.model.register_backward_hook(self.__backward_hook)
 
         # Initialize the output directory
         if self.csv:
@@ -60,8 +60,11 @@ class memory_profiler:
                 print(f"Creation of the output directory {OUTPUT_DIR} failed")
 
             # .csv column labels
-            s="epoch,iteration,peak_allocated,"
-            s+="peak_cached,current_cached,total_activation_usage,"
+            s="epoch,"
+            s+="iteration,"
+            s+="peak_cached,"
+            s+="current_cached,"
+            s+="total_activation_usage,"
             s+="total_weight_usage,"
             for dp in self.params:
                 s+=self.params[dp]["name"]+","                
@@ -75,7 +78,7 @@ class memory_profiler:
             print(f"Logging data in {self.fname}")
         
 
-    def gather_named_parameters(self):
+    def __gather_named_parameters(self):
         """
         Gathers named_parameters from the model.
         """
@@ -90,7 +93,7 @@ class memory_profiler:
             self.params[dp]["grad_size"]=0 # mem of gradient (.grad)
 
 
-    def total_layer_mem_MB(self):
+    def __total_layer_mem_MB(self):
         """
         Calculates the total memory usage of all the named 
         parameters in self.params (weights)
@@ -101,18 +104,18 @@ class memory_profiler:
         return MB(r)
 
 
-    def recursive_hooks(self, layer):
+    def __recursive_hooks(self, layer):
         '''
         Recursively register forward hooks in all submodules
         of the model. This ensures every activation is accounted
         for during the forward pass.
         '''
         for name, layer in layer._modules.items():
-            layer.register_forward_hook(self.forward_hook)
-            self.recursive_hooks(layer)
+            layer.register_forward_hook(self.__forward_hook)
+            self.__recursive_hooks(layer)
 
 
-    def forward_hook(self,m, i, o):
+    def __forward_hook(self,m, i, o):
         '''
         The hook function to be registered on each module
 
@@ -131,10 +134,10 @@ class memory_profiler:
                 self.memory_used_by_feature_maps+=getTensorSize(input_t,scale="B")
 
 
-    def backwards_hook(self, m, in_grads, out_grads):
+    def __backward_hook(self, m, in_grads, out_grads):
         """
         Registers hooks for the backward pass. By calling this as:
-            model.register_backward_hook(self.backwards_hook)
+            model.register_backward_hook(self.__backward_hook)
         all intermediate gradients are registered as well, and not just
         the gradients of leaf nodes in the computational graph.
         https://discuss.pytorch.org/t/using-hook-function-to-save-gradients/4334
@@ -186,12 +189,12 @@ class memory_profiler:
         self.iteration+=1
         
         if self.iteration % self.print_period == 0:
-            self.print_info_table()
+            self.__print_info_table()
             if self.csv:
-                self.write_info_csv()
+                self.__write_info_csv()
    
     
-    def print_info_table(self):
+    def __print_info_table(self):
         """
         Prints memory diagnostics about weights, gradients, and 
         activations in a user-friendly table. 
@@ -220,14 +223,14 @@ class memory_profiler:
         print("Memory Usage for Iteration", self.iteration, "of Epoch", self.epoch)
         print(dash)
 
-        print('{:.<35s}{:.>5d} MB'.format("Peak allocated", MB(torch.cuda.max_memory_allocated())))
+        #print('{:.<35s}{:.>5d} MB'.format("Peak allocated", MB(torch.cuda.max_memory_allocated())))
         #print('{:.<35s}{:.>5d} MB'.format("Current allocated", MB(torch.cuda.memory_allocated())))
         print('{:.<35s}{:.>5d} MB'.format("Peak cached", MB(torch.cuda.max_memory_cached())))
         print('{:.<35s}{:.>5d} MB'.format("Current cached", MB(torch.cuda.memory_cached())))
         print('{:.<35s}{:.>5d} MB'.format("Total activation usage", MB(self.memory_used_by_feature_maps)))
         
         # Layer-by-layer weight breakdown
-        print('\n{:.<35s}{:.>5d} MB'.format("Total weight usage", self.total_layer_mem_MB()))
+        print('\n{:.<35s}{:.>5d} MB'.format("Total weight usage", self.__total_layer_mem_MB()))
         for dp in self.params:
             print('{:<2s}{:.<33s}{:.>5d} MB'.format('',self.params[dp]["name"], MB(self.params[dp]["size"])))
 
@@ -240,11 +243,11 @@ class memory_profiler:
         print('{:<2s}{:.<33s}{:.>5d} MB'.format('',"Intermediate grads", MB(self.unnamed_gradient_mem)))
     
 
-    def write_info_csv(self):
+    def __write_info_csv(self):
         """
         Prints memory diagnostics info to a .csv file. 
         Functionally, this information is identical to
-        print_info_table().
+        __print_info_table().
 
         All values are in MB.
 
@@ -256,11 +259,11 @@ class memory_profiler:
         """
         s=str(self.epoch) + ","
         s+=str(self.iteration) + ","
-        s+=str(MB(torch.cuda.max_memory_allocated()))+","
+        #s+=str(MB(torch.cuda.max_memory_allocated()))+","
         s+=str(MB(torch.cuda.max_memory_cached()))+","
         s+=str(MB(torch.cuda.memory_cached()))+","
         s+=str(MB(self.memory_used_by_feature_maps))+","
-        s+=str(self.total_layer_mem_MB())+","
+        s+=str(self.__total_layer_mem_MB())+","
         for dp in self.params:
             s+=str(MB(self.params[dp]["size"]))+","
         s+=str(MB(self.memory_used_by_gradients))+","
