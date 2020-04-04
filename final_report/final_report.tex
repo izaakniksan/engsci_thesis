@@ -387,13 +387,18 @@ This section walks through an example of how the PyTorch memory profiler is to b
 
 % TODO: link my github
 
-%%%%%%%%% RESULTS::Profiling Results
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%     RESULTS
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Profiling Results}
 \label{profiling_results}
 This section presents memory profiling results on real-world deep neural networks. All models presented here have open-source implementations and training code available on TBD Suite \cite{tbd_suite}. The system used for training benchmarks is described in Table \ref{table:system_specs}.
 
 \begin{table}[H]
 \centering
+\resizebox{0.6\textwidth}{!}{%
 \begin{tabular}{@{}ll@{}}
 \toprule
 \textbf{Type} & \textbf{Component Used}                                  \\ \midrule
@@ -402,18 +407,24 @@ GPU           & NVIDIA GeForce GTX 1080 Ti, 11 GB GDDR5X                 \\ \mid
 OS            & Ubuntu 16.04 LTS                                         \\ \midrule
 Host Memory   & 16 GB DDR4, 3200 MHz                                     \\ 
 \bottomrule
-\end{tabular}
+\end{tabular}}
 \caption{Specification of system used for profiling}
 \label{table:system_specs}
 \end{table}
 
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%     RESULTS :: Neural Collaborative Filtering (NCF)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \cvprsubsection{Neural Collaborative Filtering (NCF)}
-This section presents the memory breakdown for the training of a Neural Collaborative Filtering \cite{ncf} model with PyTorch. The MovieLens 20M dataset \cite{ml-20m} was used for input training data. The hyperparameters used for all training experiments are found in table \ref{table:ncf_hyperparameters}.
+This section presents the memory breakdown for the training of a Neural Collaborative Filtering \cite{ncf} model with PyTorch. The MovieLens 20M dataset \cite{ml-20m} was used for input training data. The hyperparameters used for all training experiments are listed in table \ref{table:ncf_hyperparameters}.
 
 
 \begin{table}[H]
 \centering
+\resizebox{0.6\textwidth}{!}{%
 \begin{tabular}{@{}ll@{}}
 \toprule
 \textbf{Hyperparameter} & \textbf{Value}                                  \\ \midrule
@@ -425,10 +436,21 @@ Threshold  & 0.635  \\ \midrule
 Number of processes  & 1  \\ \midrule
 Number of dataloader workers  & 0 \\ 
 \bottomrule
-\end{tabular}
+\end{tabular}}
 \caption{Hyperparameters used for NCF memory profiling experiments}
 \label{table:ncf_hyperparameters}
 \end{table}
+
+Figure \ref{fig:recommendation_bar_graph} shows the memory usage of the feature maps, layer weights, and layer gradients for different mini-batch sizes. Feature maps consume the majority of the GPU memory, which is especially evident as the mini-batch size increases. The memory usage of layer weights and the gradients of these layer weights are not dependent on the mini-batch size. Table \ref{table:ncf_full_breakdown} shows a more detailed memory breakdown. The intermediate gradients are tensors which were seen by the profiler's hooks during the backward pass, but whose memory was not attributable to the named layer weight gradients. The memory consumed by these intermediate tensors did increase with mini-batch size.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{recommendation_bar_graphs.PNG}
+\captionsetup{width=0.8\linewidth}
+\caption{Memory breakdown of NCF training into feature maps, layer weights, and layer weight gradients for different batch sizes}
+\label{fig:recommendation_bar_graph}
+\end{figure}
+
 
 \begin{table}[H]
 \centering
@@ -438,8 +460,8 @@ Number of dataloader workers  & 0 \\
 \backslashbox{\textbf{Type}}{\textbf{Batch Size}}
                                   & \textbf{32768 Ratings} & \textbf{65536 Ratings} & \textbf{131072 Ratings} \\ \hline
 \textbf{peak cached}             & \textbf{857}                        & \textbf{1107}                       & \textbf{1714}                        \\ \hline
-\textbf{total activation usage} & \textbf{301}                        & \textbf{697}                        & \textbf{1451}                        \\ \hline
-\textbf{total weight usage}     & \textbf{127}                        & \textbf{127}                        & \textbf{127}                         \\ \hline
+\textbf{total feature map usage} & \textbf{301}                        & \textbf{697}                        & \textbf{1451}                        \\ \hline
+\textbf{total layer weight usage}     & \textbf{127}                        & \textbf{127}                        & \textbf{127}                         \\ \hline
 mf\_user\_embed.weight            & 35                         & 35                         & 35                          \\ \hline
 mf\_item\_embed.weight            & 7                          & 7                          & 7                           \\ \hline
 mlp\_user\_embed.weight           & 71                         & 71                         & 71                          \\ \hline
@@ -452,7 +474,7 @@ mlp.2.weight                      & 0                          & 0              
 mlp.2.bias                        & 0                          & 0                          & 0                           \\ \hline
 final.weight                      & 0                          & 0                          & 0                           \\ \hline
 final.bias                        & 0                          & 0                          & 0                           \\ \hline
-\textbf{total gradient usage}     & \textbf{161}                        & \textbf{229}                        & \textbf{330}                         \\ \hline
+\textbf{total layer weight gradient usage}     & \textbf{127}                        & \textbf{127}                        & \textbf{127}                         \\ \hline
 mf\_user\_embed.weight grad       & 35                         & 35                         & 35                          \\ \hline
 mf\_item\_embed.weight grad       & 7                          & 7                          & 7                           \\ \hline
 mlp\_user\_embed.weight grad      & 71                         & 71                         & 71                          \\ \hline
@@ -465,9 +487,10 @@ mlp.2.weight grad                 & 0                          & 0              
 mlp.2.bias grad                   & 0                          & 0                          & 0                           \\ \hline
 final.weight grad                 & 0                          & 0                          & 0                           \\ \hline
 final.bias grad                   & 0                          & 0                          & 0                           \\ \hline
-intermediate grads                & 34                         & 101                        & 203                         \\ \hline
+\textbf{intermediate gradients}                & \textbf{34}                         & \textbf{101}                        & \textbf{203}                         \\ \hline
 \end{tabular}}
-\caption{Neural Collaborative Filtering memory breakdowns for varying batch sizes (values in MB)}
+\caption{Neural Collaborative Filtering memory breakdowns for varying batch sizes. All values rounded to nearest MB.}
+\label{table:ncf_full_breakdown}
 \end{table}
 
 
@@ -482,7 +505,7 @@ This section presents the memory breakdown for the training of a ResNet-50 \cite
 %%%%%%%%% CONCLUSION
 \section{Conclusion and Future Work}
 \label{conclusion}
-% TODO
+% TODO: future work: more investigation into intermediate grads, and work on layer-by-layer activation breakdown
 
 
 %%%%%%%%% APPENDIX
