@@ -15,6 +15,24 @@
 \usepackage{enumitem}   
 \usepackage{pdfpages}
 \usepackage{booktabs,xltabular}
+\usepackage[dvipsnames]{xcolor}
+
+\usepackage{fancyvrb}
+
+% redefine \VerbatimInput
+\RecustomVerbatimCommand{\VerbatimInput}{VerbatimInput}%
+{fontsize=\footnotesize,
+ %
+ frame=lines,  % top and bottom rule only
+ framesep=2em, % separation between frame and text
+ rulecolor=\color{Gray},
+ %
+
+ %
+ commandchars=\|\(\), % escape character and argument delimiters for
+                      % commands within the verbatim
+ commentchar=*        % comment character
+}
 % Include other packages here, before hyperref.
 
 % If you comment hyperref and then uncomment it, you should delete
@@ -368,20 +386,91 @@ Figure \ref{fig:profiler_system_diagram} shows a system diagram of the PyTorch m
 
 Next, the profiler registers forward and backward hooks. These allow the profiler to inspect feature maps and gradients, respectively. The Autograd engine accumulates values internally in C++ buffers, which are only exposed via these hooks. The hooks that are registered are specialized functions defined within the profiler to gather memory consumption metrics. Importantly, the data pointers of activations and gradients are also collected during runtime to ensure that no intermediate tensor is mistakenly counted twice by the memory profiler. \par 
 
-During the training algorithm, the forward and backward pass execute as normal. However, the hooks registered earlier are automatically run after every intermediate computation. The profiler keeps track of all the memory usage by each part of the model, and reports relevant diagnostics. The cache is also monitored, and statistics about its peak size and its current size at the end of each iteration are reported. \par 
+During the training algorithm, the forward and backward pass execute as normal. However, the hooks registered earlier are automatically run after every intermediate computation. The profiler keeps track of the memory usage by each part of the model, and reports relevant diagnostics. The cache is also monitored, and statistics about its peak size and its current size at the end of each iteration are reported. \par 
 
-%%%%%%%%% RESULTS
-\section{PyTorch Memory Profiler Use and Results}
-\label{results}
-This section presents an example of how the profiler is used, along with profiling results on a GTX 1080 Ti GPU.
-% TODO: my cpu, OS, ram, etc.
+%%%%%%%%% PROFILER GUIDE
+\section{Profiler Guide}
+\label{profiler_guide}
+This section walks through an example of how the PyTorch memory profiler is to be used.
+\cvprsubsection{Setup}
+% prereqs, initialization
+
+\cvprsubsection{Usage}
+
+
+% TODO: link my github
+
+%%%%%%%%% RESULTS::Profiling Results
+\section{Profiling Results}
+\label{profiling_results}
+This section presents memory profiling results on real-world deep neural networks. All models presented here have open-source implementations and training code available on TBD Suite \cite{tbd_suite}. The system used for training
+
+\begin{table}[]
+\centering
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Type} & \textbf{Component Used}                                  \\ \midrule
+CPU           & AMD Ryzen 7 2700X, 4.3 GHz Max Boost, 8 Cores            \\ \midrule
+GPU           & NVIDIA GeForce GTX 1080 Ti, 11 GB GDDR5X                 \\ \midrule
+OS            & Ubuntu 16.04 LTS                                         \\ \midrule
+Host Memory   & 16 GB DDR4, 3200 MHz                                     \\ 
+\bottomrule
+\end{tabular}
+\caption{Specification of system used for profiling}
+\end{table}
+
+
+\cvprsubsection{Neural Collaborative Filtering}
+This section presents the memory breakdown for the training of a Neural Collaborative Filtering \cite{ncf} model on PyTorch.
+
+\begin{table}[]
+\centering
+\begin{tabular}{|l|l|l|l|}
+\hline
+                                  & \textbf{batch\_size=32768} & \textbf{batch\_size=65536} & \textbf{batch\_size=131072} \\ \hline
+\textbf{peak cached}             & \textbf{857}                        & \textbf{1107}                       & \textbf{1714}                        \\ \hline
+\textbf{total activation usage} & \textbf{301}                        & \textbf{697}                        & \textbf{1451}                        \\ \hline
+\textbf{total weight usage}     & \textbf{127}                        & \textbf{127}                        & \textbf{127}                         \\ \hline
+mf\_user\_embed.weight            & 35                         & 35                         & 35                          \\ \hline
+mf\_item\_embed.weight            & 7                          & 7                          & 7                           \\ \hline
+mlp\_user\_embed.weight           & 71                         & 71                         & 71                          \\ \hline
+mlp\_item\_embed.weight           & 14                         & 14                         & 14                          \\ \hline
+mlp.0.weight                      & 0                          & 0                          & 0                           \\ \hline
+mlp.0.bias                        & 0                          & 0                          & 0                           \\ \hline
+mlp.1.weight                      & 0                          & 0                          & 0                           \\ \hline
+mlp.1.bias                        & 0                          & 0                          & 0                           \\ \hline
+mlp.2.weight                      & 0                          & 0                          & 0                           \\ \hline
+mlp.2.bias                        & 0                          & 0                          & 0                           \\ \hline
+final.weight                      & 0                          & 0                          & 0                           \\ \hline
+final.bias                        & 0                          & 0                          & 0                           \\ \hline
+\textbf{total gradient usage}     & \textbf{161}                        & \textbf{229}                        & \textbf{330}                         \\ \hline
+mf\_user\_embed.weight grad       & 35                         & 35                         & 35                          \\ \hline
+mf\_item\_embed.weight grad       & 7                          & 7                          & 7                           \\ \hline
+mlp\_user\_embed.weight grad      & 71                         & 71                         & 71                          \\ \hline
+mlp\_item\_embed.weight grad      & 14                         & 14                         & 14                          \\ \hline
+mlp.0.weight grad                 & 0                          & 0                          & 0                           \\ \hline
+mlp.0.bias grad                   & 0                          & 0                          & 0                           \\ \hline
+mlp.1.weight grad                 & 0                          & 0                          & 0                           \\ \hline
+mlp.1.bias grad                   & 0                          & 0                          & 0                           \\ \hline
+mlp.2.weight grad                 & 0                          & 0                          & 0                           \\ \hline
+mlp.2.bias grad                   & 0                          & 0                          & 0                           \\ \hline
+final.weight grad                 & 0                          & 0                          & 0                           \\ \hline
+final.bias grad                   & 0                          & 0                          & 0                           \\ \hline
+intermediate grads                & 34                         & 101                        & 203                         \\ \hline
+\end{tabular}
+\end{table}
+
+
+\cvprsubsection{ResNet-50}
+This section presents the memory breakdown for the training of a ResNet-50 \cite{resnet} model on PyTorch.
+
 
 % TODO: show results from profiling 
 % A user-friendly and feature-complete profiler must be finalized. This requires combining the profiler components together, and further investigation about how to cleanly integrate the profiler with a user's PyTorch code. The current approach has been to insert a few API calls at specific sections of the training run - for example right before and after the \texttt{.backward()} call - which informs the user about the total memory usage of the program (including the cache), the total amount of the cache currently used by tensors, and a layer-by-layer breakdown of these tensors. Finally, given the rising usage of distributed computing techniques (several GPUs instead of just one) by the community, functionality to determine a device-by-device memory breakdown is needed. This is a straightforward extension of existing methods used by this profiler. The metrics gathered by the profiler must then be exported into visual graphs, which can be done using Matplotlib \cite{matplotlib}.
 % \par
 
 %%%%%%%%% CONCLUSION
-\section{Conclusion and Further Work}
+\section{Conclusion and Future Work}
 \label{conclusion}
 % TODO
 
