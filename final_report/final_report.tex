@@ -373,7 +373,7 @@ Figure \ref{fig:profiler_system_diagram} shows a system diagram of the PyTorch m
 
 Next, the profiler registers forward and backward hooks. These allow the profiler to inspect feature maps and gradients, respectively. The Autograd engine accumulates values internally in C++ buffers, which are only exposed via these hooks. The hooks that are registered are specialized functions defined within the profiler to gather memory consumption metrics. Importantly, the data pointers of activations and gradients are also collected during runtime to ensure that no intermediate tensor is mistakenly counted twice by the memory profiler. \par 
 
-During the training algorithm, the forward and backward pass execute as normal. However, the hooks registered earlier are automatically run after every intermediate computation. The profiler keeps track of the memory usage by each part of the model, and reports relevant diagnostics. The cache is also monitored, and statistics about its peak size and its current size at the end of each iteration are reported. \par 
+During the training algorithm, the forward and backward passes execute as normal. However, the hooks registered earlier are automatically run after every intermediate computation. The profiler keeps track of the memory usage by each part of the model, and reports relevant diagnostics. The cache is also monitored, and statistics about its peak size and its current size at the end of each iteration are reported. \par 
 
 %%%%%%%%% PROFILER GUIDE
 \section{Profiler Guide}
@@ -418,8 +418,8 @@ Host Memory   & 16 GB DDR4, 3200 MHz                                     \\
 %     RESULTS :: Neural Collaborative Filtering (NCF)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\cvprsubsection{Neural Collaborative Filtering (NCF)}
-This section presents the memory breakdown for the training of a Neural Collaborative Filtering \cite{ncf} model with PyTorch. The MovieLens 20M dataset \cite{ml-20m} was used for input training data. The hyperparameters used for all training experiments are listed in table \ref{table:ncf_hyperparameters}.
+\cvprsubsection{Neural Collaborative Filtering (NCF) Benchmarks}
+This section presents the memory breakdown for the training of a Neural Collaborative Filtering \cite{ncf} model with PyTorch. The MovieLens 20M dataset \cite{ml-20m} was used for input training data. The hyperparameters used for all training experiments are listed in Table \ref{table:ncf_hyperparameters}.
 
 
 \begin{table}[H]
@@ -489,18 +489,52 @@ final.weight grad                 & 0                          & 0              
 final.bias grad                   & 0                          & 0                          & 0                           \\ \hline
 \textbf{intermediate gradients}                & \textbf{34}                         & \textbf{101}                        & \textbf{203}                         \\ \hline
 \end{tabular}}
-\caption{Neural Collaborative Filtering memory breakdowns for varying batch sizes. All values rounded to nearest MB.}
+\caption{Neural Collaborative Filtering memory breakdowns for varying batch sizes. All values rounded to the nearest MB.}
 \label{table:ncf_full_breakdown}
 \end{table}
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%     RESULTS :: ResNet-50 Benchmarks
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\cvprsubsection{ResNet-50}
-This section presents the memory breakdown for the training of a ResNet-50 \cite{resnet} model on PyTorch.
+\cvprsubsection{ResNet-50 Benchmarks}
+This section presents the memory breakdown for the training of a ResNet-50 v2 \cite{resnet} model on PyTorch. The ImageNet LSVRC 2012 dataset \cite{imagenet2012} was used for input training data. The hyperparemeters used for all training experiments are listed in Table \ref{table:resnet_hyperparameters}.
 
+\begin{table}[H]
+\centering
+\resizebox{0.35\textwidth}{!}{%
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Hyperparameter} & \textbf{Value}                                  \\ \midrule
+Learning rate  & 0.1  \\ \midrule
+Number of dataloader workers  & 4  \\ 
+\bottomrule
+\end{tabular}}
+\caption{Hyperparameters used for ResNet-50 v2 memory profiling experiments}
+\label{table:resnet_hyperparameters}
+\end{table}
 
-% TODO: show results from profiling 
-% A user-friendly and feature-complete profiler must be finalized. This requires combining the profiler components together, and further investigation about how to cleanly integrate the profiler with a user's PyTorch code. The current approach has been to insert a few API calls at specific sections of the training run - for example right before and after the \texttt{.backward()} call - which informs the user about the total memory usage of the program (including the cache), the total amount of the cache currently used by tensors, and a layer-by-layer breakdown of these tensors. Finally, given the rising usage of distributed computing techniques (several GPUs instead of just one) by the community, functionality to determine a device-by-device memory breakdown is needed. This is a straightforward extension of existing methods used by this profiler. The metrics gathered by the profiler must then be exported into visual graphs, which can be done using Matplotlib \cite{matplotlib}.
-% \par
+Figure \ref{fig:resnet_bar_graph} shows the memory usage of the feature maps, layer weights, and layer gradients for different mini-batch sizes. As was the case with the NCF model, again the feature maps consume the majority of the GPU memory. Given the large number of layers, a full layer-by-layer memory breakdown is presented in Appendix \ref{appendix:resnet_50_full_breakdown}.
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{resnet_bar_graphs.PNG}
+\captionsetup{width=0.8\linewidth}
+\caption{Memory breakdown of ResNet-50 v2 training into feature maps, layer weights, and layer weight gradients for different batch sizes}
+\label{fig:resnet_bar_graph}
+\end{figure}
+
+Using existing memory profilers, the EcoSystem team has gathered memory breakdowns for ResNet-50 implementations in other frameworks. While the system specifications of those experiments are not identical to those used for the PyTorch experiments (notably, a Quadro P4000 GPU was used), the breakdowns are similar. This further demonstrates the accuracy of this proposed PyTorch memory profiler and its ability to correctly characterize training memory usage. The results for those breakdowns can be found in Figure \ref{fig:other_frameworks_resnet}.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=1.0\textwidth]{ecosystem_resnet_other_frameworks_bar_graph.PNG}
+\captionsetup{width=0.8\linewidth}
+\caption{Memory breakdowns of ResNet-50 training for other frameworks \cite{tbd_benchmarks}}
+\label{fig:other_frameworks_resnet}
+\end{figure}
+
 
 %%%%%%%%% CONCLUSION
 \section{Conclusion and Future Work}
@@ -515,12 +549,13 @@ This section presents the memory breakdown for the training of a ResNet-50 \cite
 
 %%%%%% APPENDIX: Resnet 50
 \section{Detailed ResNet-50 Memory Statistics}
-Given the large number of parameters of the ResNet-50 model, only the layer-by-layer breakdown for a batch size of 32 is presented. Training was done using a single NVIDIA GeForce GTX 1080 Ti GPU. All values are rounded to the nearest MB, and were taken directly from the profiler's csv output. In the interest of space, only non-zero values are shown.
+\label{appendix:resnet_50_full_breakdown}
+In this section the layer-by-layer PyTorch memory breakdown of ResNet-50 training for a batch size of 32 is presented. Training was done using system specs listed in Table \ref{table:system_specs}. All values are rounded to the nearest MB and were taken directly from the profiler's csv output. In the interest of space, only non-zero values are shown.
 \begin{longtable}{@{}ll@{}}
 \toprule
-\textbf{peak\_cached}                              & \textbf{5475} \\ \midrule
-\textbf{total\_activation\_usage}                  & \textbf{5219} \\ \midrule
-\textbf{total\_weight\_usage }                     & \textbf{102}  \\ \midrule
+\textbf{peak cached}                              & \textbf{5475} \\ \midrule
+\textbf{total feature map usage}                  & \textbf{5219} \\ \midrule
+\textbf{total layer weight usage}                     & \textbf{102}  \\ \midrule
 module.layer2.0.conv2.weight              & 1    \\ \midrule
 module.layer2.0.downsample.0.weight       & 1    \\ \midrule
 module.layer2.1.conv2.weight              & 1    \\ \midrule
@@ -557,7 +592,7 @@ module.layer4.2.conv2.weight              & 9    \\ \midrule
 module.layer4.2.conv3.weight              & 4    \\ \midrule
 module.fc.weight                          & 8    \\ \midrule
                                           &      \\ \midrule
-\textbf{total\_gradient\_usage}           & \textbf{120}  \\ \midrule
+\textbf{total layer weight gradient usage}           & \textbf{94}  \\ \midrule
 module.layer2.0.conv2.weight\_grad        & 1    \\ \midrule
 module.layer2.0.downsample.0.weight\_grad & 1    \\ \midrule
 module.layer2.1.conv2.weight\_grad        & 1    \\ \midrule
@@ -592,7 +627,7 @@ module.layer4.1.conv3.weight\_grad        & 4    \\ \midrule
 module.layer4.2.conv1.weight\_grad        & 4    \\ \midrule
 module.layer4.2.conv2.weight\_grad        & 9    \\ \midrule
 module.layer4.2.conv3.weight\_grad        & 4    \\ \midrule
-intermediate\_grads                       & 26   \\ \bottomrule
+\textbf{intermediate gradients}                       & 26   \\ \bottomrule
 \end{longtable}
 \newpage
 
