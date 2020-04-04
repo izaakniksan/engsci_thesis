@@ -64,7 +64,8 @@ The EcoSystem research group at the University of Toronto has developed open-sou
 
 To profile memory with PyTorch, the fastest-growing machine learning framework today, new strategies and insight are required. This paper first provides background on the topic, then presents a novel memory profiler for PyTorch along with results of it being used on real models. \par 
 
-\section{Background}
+%%%%%%%%% BACKGROUND 
+\section{Computational Machine Learning and Existing Profilers}
 %%%%%%%%% BACKGROUND::Neural Networks
 \cvprsubsection{Neural Networks}
 While there are many types of artificial neural networks, they all involve the transformation of some input data (for example the pixels of an image) into meaningful output - in fact, a neural network is nothing more than a composition of mathematical functions. The function modeled by a neural network is special, however, because it can model \textit{any} mathematical function with arbitrary accuracy (provided that the network has at least two layers) \cite{dnn_history}. It is because of this property that neural networks have been labeled \enquote*{universal approximators}. Loosely, this means that if there are useful patterns in the world - whether they correspond to user preferences in movies based on past movies they have watched, or classification of images based on their pixel composition, or even cardiac arrest likelihood based on heart rate - a sufficiently-trained neural network can identify it. The effectiveness of a neural network in identifying these patterns depends primarily on two things: the amount of data it has been trained with, and its specific topology.
@@ -189,15 +190,15 @@ The MXNet memory profiler's main challenge is linking symbol names to specific \
 \label{fig:mxnet_design}
 \end{figure}
 
-%%%%%%%%% PROGRESS TO DATE
-\section{Progress to Date}
+%%%%%%%%% METHODS
+\section{Designing a PyTorch Memory Profiler}
 \label{progress_to_date}
-Unlike the frameworks for which these memory profilers were created, PyTorch uses completely different memory management and computational graph strategies. In order to create a memory profiler for PyTorch, these differences must be investigated and thoroughly understood. This involves investigating both its front end (Python\footnote{While PyTorch does have a C++ front end as well, it is generally less user-friendly and not used as often}) and back end (C++) code implementations. This section discusses the internals of PyTorch and how a memory profiler can be created.
+Unlike the frameworks for which these memory profilers were created, PyTorch uses completely different memory management and computational graph strategies. In order to create a memory profiler for PyTorch, these differences must be investigated and thoroughly understood. This involves investigating both its front end (Python\footnote{While PyTorch does have a C++ front end as well, it is generally less user-friendly and not used as often}) and back end (C++) code implementations. This section discusses the internals of PyTorch and how the memory profiler was created.
 
-%%%%%%%%% PROGRESS TO DATE::Memory Caching
+%%%%%%%%% METHODS::Memory Caching
 \cvprsubsection{Memory Caching}
 \label{sec:memory_caching}
-The first difference - and perhaps most important one in the context of this paper - is how PyTorch handles its device memory. Unlike other frameworks, PyTorch uses \textit{caching} as its primary memory management strategy. The reason for this lies in the fact that PyTorch does not create a static computational graph with pre-allocated room for variables and tensors. This new paradigm, which is discussed in later sections of this paper, is known as \textit{dynamic computational graphs}. For now it suffices to say that PyTorch does not know how the forward and backward pass will be executed until runtime, i.e. until training or inference begins. Caching is best explained by the creators of PyTorch \cite{pytorch_paper}:
+The first difference - and perhaps most important one in the context of this paper - is how PyTorch handles its device memory. Unlike other frameworks, PyTorch uses \textit{caching} as its primary memory management strategy. The reason for this lies in the fact that PyTorch does not create a static computational graph with pre-allocated room for variables and tensors. This new paradigm, which is discussed in section \ref{dynamic_computational_graphs_and_autograd}, is known as \textit{dynamic computational graphs}. For now it suffices to say that PyTorch does not know how the forward and backward pass will be executed until runtime, i.e. until training or inference begins. Caching is best explained by the creators of PyTorch \cite{pytorch_paper}:
 
 \begin{quote}
 \enquote{
@@ -226,7 +227,7 @@ By gradually increasing the cache size as the program progresses, the majority o
  
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
-%     PROGRESS TO DATE::Tensors in PyTorch
+%     METHODS ::Tensors in PyTorch
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -306,8 +307,15 @@ The output is as follows:
 \end{lstlisting}
 \par
 This convenient saving of layer names has many similarities to the one previously discussed in MXNet in section \ref{sec:Machine_Learning_Frameworks_and_Memory_Profiler}, and will serve to be useful in creating a new memory profiler for PyTorch given the mapping it provides between layer names and their data objects. 
-%%%%%%%%% PROGRESS TO DATE::Dynamic Computational Graphs and Autograd
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%     PROGRESS TO DATE::Dynamic Computational Graphs and Autograd
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 \cvprsubsection{Dynamic Computational Graphs and Autograd}
+\label{dynamic_computational_graphs_and_autograd}
 The network definition in Listing \ref{listing:nn.module_example} has one other important definition, namely its \texttt{forward()} method. This method describes the exact sequence of calculations that will be undertaken during the forward pass of the network, both during training and inference. This example is trivial, and the backward pass procedure could be defined manually with some basic calculus and a few lines of code. However, modern neural networks are very complex and have detailed computational procedures that define their forward passes. Manually defining a backward pass each time would be an arduous and error-prone process, and thus a more scalable system is required.
 \par
 
@@ -350,40 +358,40 @@ total_memory = tensor.storage().size() * tensor.element_size()
 The calculated total memory size can then be saved by the profiler and used by its algorithm. It is noted that, as mentioned in section \ref{sec:memory_caching}, allocations are rounded to 512 bytes and this must be taken into account by the profiler.
 \par 
 
-The proposed strategy involves creating a helper class which will do the memory profiling analysis. Users will be able to interface this profiler with their existing PyTorch code via a simple API, starting off by passing in their model instance. Once the profiler receives the model, it can access the model's \texttt{state\_dict} and determine the layer names and their underlying tensor data. This allows the profiler to determine the memory consumption of the weights.
-\par 
-
-Next, there must be a mechanism to analyze activations and gradients. Hooks are used for this purpose. Recall that there are many ways to use hooks, i.e. different types and also different ways to call each of these types. For activations, \texttt{register\_forward\_hook()} will internally be called on each of the layers. The function which is registered by the hook will inspect the activation output at the time it is being created, and measure its size in memory. This allows the profiler to directly measure how much device memory is being consumed by all the activations, broken down by layer name.
-\par 
-
-Gradients will also be analyzed with hooks, but this time by using \texttt{register\_backward\_hook()} on the model itself. This usage of the hooking mechanism will record all intermediate gradients that are calculated, not just the gradients for leaf nodes in the computational graph. The sizes of all these gradients will also be stored in the profiler's internal data structures.
-\par 
-
-Preliminary testing using this approach has been effective in capturing tensor data and determining memory usage.
-\par 
-
-%%%%%%%%% FUTURE WORK
-\section{Future Work}
-\label{future_work}
-A user-friendly and feature-complete profiler must be finalized. This requires combining the profiler components together, and further investigation about how to cleanly integrate the profiler with a user's PyTorch code. The current approach has been to insert a few API calls at specific sections of the training run - for example right before and after the \texttt{.backward()} call - which informs the user about the total memory usage of the program (including the cache), the total amount of the cache currently used by tensors, and a layer-by-layer breakdown of these tensors. Finally, given the rising usage of distributed computing techniques (several GPUs instead of just one) by the community, functionality to determine a device-by-device memory breakdown is needed. This is a straightforward extension of existing methods used by this profiler. The metrics gathered by the profiler must then be exported into visual graphs, which can be done using Matplotlib \cite{matplotlib}.
-\par
-
-Once the profiler has been completed, it will be used to investigate the memory usage of current models. This application of the profiler to real-world use cases will comprise the remainder of the project.
 \begin{figure}[ht]
 \centering
-\includegraphics[width=.9\textwidth]{remaining_work_schedule.png}
-\captionsetup{width=0.7\linewidth}
-\caption{Remaining timeline}
-\label{fig:thesis_timeline}
+\includegraphics[width=1.0\textwidth]{profiler_system_diagram.PNG}
+\captionsetup{width=0.9\linewidth}
+\caption{System diagram of the proposed PyTorch memory profiler}
+\label{fig:profiler_system_diagram}
 \end{figure}
 
+In Figure \ref{fig:profiler_system_diagram} blue steps comprise the normal training workflow, and orange steps are the modifications to the flow done autonomously by the profiler.
 
+% TODO: explain system diagram, walk explain how hooks and the profiler works in general, and go through the README example from github to show it in use
+% The proposed strategy involves creating a helper class which will do the memory profiling analysis. Users will be able to interface this profiler with their existing PyTorch code via a simple API, starting off by passing in their model instance. Once the profiler receives the model, it can access the model's \texttt{state\_dict} and determine the layer names and their underlying tensor data. This allows the profiler to determine the memory consumption of the weights.
+% \par 
 
+% Next, there must be a mechanism to analyze activations and gradients. Hooks are used for this purpose. Recall that there are many ways to use hooks, i.e. different types and also different ways to call each of these types. For activations, \texttt{register\_forward\_hook()} will internally be called on each of the layers. The function which is registered by the hook will inspect the activation output at the time it is being created, and measure its size in memory. This allows the profiler to directly measure how much device memory is being consumed by all the activations, broken down by layer name.
+% \par 
 
-%%%%%% csv stuff
+% Gradients will also be analyzed with hooks, but this time by using \texttt{register\_backward\_hook()} on the model itself. This usage of the hooking mechanism will record all intermediate gradients that are calculated, not just the gradients for leaf nodes in the computational graph. The sizes of all these gradients will also be stored in the profiler's internal data structures.
+% \par 
 
+% Preliminary testing using this approach has been effective in capturing tensor data and determining memory usage.
+% \par 
 
+%%%%%%%%% RESULTS
+\section{PyTorch Memory Profiling Results}
+\label{results}
+% TODO: show results from profiling 
+% A user-friendly and feature-complete profiler must be finalized. This requires combining the profiler components together, and further investigation about how to cleanly integrate the profiler with a user's PyTorch code. The current approach has been to insert a few API calls at specific sections of the training run - for example right before and after the \texttt{.backward()} call - which informs the user about the total memory usage of the program (including the cache), the total amount of the cache currently used by tensors, and a layer-by-layer breakdown of these tensors. Finally, given the rising usage of distributed computing techniques (several GPUs instead of just one) by the community, functionality to determine a device-by-device memory breakdown is needed. This is a straightforward extension of existing methods used by this profiler. The metrics gathered by the profiler must then be exported into visual graphs, which can be done using Matplotlib \cite{matplotlib}.
+% \par
 
+%%%%%%%%% CONCLUSION
+\section{Conclusion and Further Work}
+\label{conclusion}
+% TODO
 
 
 %%%%%%%%% APPENDIX
