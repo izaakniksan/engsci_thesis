@@ -18,21 +18,8 @@
 \usepackage[dvipsnames]{xcolor}
 
 \usepackage{fancyvrb}
-
-% redefine \VerbatimInput
-\RecustomVerbatimCommand{\VerbatimInput}{VerbatimInput}%
-{fontsize=\footnotesize,
- %
- frame=lines,  % top and bottom rule only
- framesep=2em, % separation between frame and text
- rulecolor=\color{Gray},
- %
-
- %
- commandchars=\|\(\), % escape character and argument delimiters for
-                      % commands within the verbatim
- commentchar=*        % comment character
-}
+\usepackage{diagbox}
+\usepackage{float}
 % Include other packages here, before hyperref.
 
 % If you comment hyperref and then uncomment it, you should delete
@@ -403,7 +390,7 @@ This section walks through an example of how the PyTorch memory profiler is to b
 %%%%%%%%% RESULTS::Profiling Results
 \section{Profiling Results}
 \label{profiling_results}
-This section presents memory profiling results on real-world deep neural networks. All models presented here have open-source implementations and training code available on TBD Suite \cite{tbd_suite}. The system used for training
+This section presents memory profiling results on real-world deep neural networks. All models presented here have open-source implementations and training code available on TBD Suite \cite{tbd_suite}. The system used for training benchmarks is described in Table \ref{table:system_specs}.
 
 \begin{table}[]
 \centering
@@ -417,17 +404,39 @@ Host Memory   & 16 GB DDR4, 3200 MHz                                     \\
 \bottomrule
 \end{tabular}
 \caption{Specification of system used for profiling}
+\label{table:system_specs}
 \end{table}
 
 
 \cvprsubsection{Neural Collaborative Filtering}
-This section presents the memory breakdown for the training of a Neural Collaborative Filtering \cite{ncf} model on PyTorch.
+This section presents the memory breakdown for the training of a Neural Collaborative Filtering \cite{ncf} model with PyTorch. The MovieLens 20M dataset \cite{ml-20m} was used for input training data. The hyperparameters used for all training experiments are found in table \ref{table:ncf_hyperparameters}.
 
-\begin{table}[]
+
+\begin{table}[H]
 \centering
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Hyperparameter} & \textbf{Value}                                  \\ \midrule
+Learning rate           & 0.0002            \\ \midrule
+Number of predictive factors  & 64  \\ \midrule
+Sizes of hidden layers for MLP  & 256, 256, 128, 64  \\ \midrule
+Number of negative examples per interaction  & 8  \\ \midrule
+Threshold  & 0.635  \\ \midrule
+Number of processes  & 1  \\ \midrule
+Number of dataloader workers  & 0 \\ 
+\bottomrule
+\end{tabular}
+\caption{Hyperparameters used for NCF memory profiling experiments}
+\label{table:ncf_hyperparameters}
+\end{table}
+
+\begin{table}[H]
+\centering
+\resizebox{0.75\textwidth}{!}{%
 \begin{tabular}{|l|l|l|l|}
 \hline
-                                  & \textbf{batch\_size=32768} & \textbf{batch\_size=65536} & \textbf{batch\_size=131072} \\ \hline
+\backslashbox{\textbf{Type}}{\textbf{Batch Size}}
+                                  & \textbf{32768 Ratings} & \textbf{65536 Ratings} & \textbf{131072 Ratings} \\ \hline
 \textbf{peak cached}             & \textbf{857}                        & \textbf{1107}                       & \textbf{1714}                        \\ \hline
 \textbf{total activation usage} & \textbf{301}                        & \textbf{697}                        & \textbf{1451}                        \\ \hline
 \textbf{total weight usage}     & \textbf{127}                        & \textbf{127}                        & \textbf{127}                         \\ \hline
@@ -457,7 +466,8 @@ mlp.2.bias grad                   & 0                          & 0              
 final.weight grad                 & 0                          & 0                          & 0                           \\ \hline
 final.bias grad                   & 0                          & 0                          & 0                           \\ \hline
 intermediate grads                & 34                         & 101                        & 203                         \\ \hline
-\end{tabular}
+\end{tabular}}
+\caption{Neural Collaborative Filtering memory breakdowns for varying batch sizes (values in MB)}
 \end{table}
 
 
