@@ -336,10 +336,8 @@ This complicated set of procedures - where the total allocated memory routinely 
 There are several variants of hooks in PyTorch, but unfortunately they have very little documentation. Still, the insight they bring is valuable, despite the fact that most information about them is only found spread across the PyTorch forums \cite{pytorch_forum}. Hooks are \textit{functions} which can be registered on either a \texttt{nn.Module} or a \texttt{Tensor} object. The three methods used to register hooks are: \texttt{register\_hook()}, \texttt{register\_forward\_hook()}, and \texttt{register\_backward\_hook()}. Depending on the type of hook, during the backward or forward pass these functions are called. Hooks allow direct access to the intermediate activations and gradients at the time of their creation - exactly what is needed for a memory profiler.
 \par 
 
-%%%%%%%%% PROGRESS TO DATE::Creating the Profiler
-\cvprsubsection{Creating the Profiler}
-% garbage collection? during a hook run garbage collection?
-%data pointers, size of memory
+%%%%%%%%% PROGRESS TO DATE::Designing the Profiler
+\cvprsubsection{Designing the Profiler}
 In the face of all the internal complexities that have been outlined thus far, it should be clear that new mechanisms must be created to profile PyTorch's device memory usage. A proposed strategy to attain a layer-by-layer breakdown into weights, activations, and gradients is developed using knowledge and methods that have been developed in previous sections. It is noted that this strategy departs from the strategies used with existing profilers in that it only uses the front end Python API available in PyTorch. This means that the profiler is version-agnostic and thus future-proof. Given the particularly fast-changing nature of PyTorch, with several recent large-scale design changes such as the variable-tensor merger \cite{pytorch_variable_tensor_merger}, having a profiler that does not have to be re-coded each time a new update arrives is a significant benefit. 
 \par 
 
@@ -366,24 +364,18 @@ The calculated total memory size can then be saved by the profiler and used by i
 \label{fig:profiler_system_diagram}
 \end{figure}
 
-In Figure \ref{fig:profiler_system_diagram} blue steps comprise the normal training workflow, and orange steps are the modifications to the flow done autonomously by the profiler.
+Figure \ref{fig:profiler_system_diagram} shows a system diagram of the PyTorch memory profiler. Blue steps comprise the normal training workflow, and orange steps are the modifications to the flow done autonomously by the profiler. After the machine learning model has been has been instantiated by the training program, a \texttt{memory\_profiler} instance is created. This object contains all the functionality necessary for the memory usage to be profiled. When it is initialized, it will analyze the layers of the model and save their data pointers. The layer names are extracted as well, which provide meaningful descriptions of their use. \par 
 
-% TODO: explain system diagram, walk explain how hooks and the profiler works in general, and go through the README example from github to show it in use
-% The proposed strategy involves creating a helper class which will do the memory profiling analysis. Users will be able to interface this profiler with their existing PyTorch code via a simple API, starting off by passing in their model instance. Once the profiler receives the model, it can access the model's \texttt{state\_dict} and determine the layer names and their underlying tensor data. This allows the profiler to determine the memory consumption of the weights.
-% \par 
+Next, the profiler registers forward and backward hooks. These allow the profiler to inspect feature maps and gradients, respectively. The Autograd engine accumulates values internally in C++ buffers, which are only exposed via these hooks. The hooks that are registered are specialized functions defined within the profiler to gather memory consumption metrics. Importantly, the data pointers of activations and gradients are also collected during runtime to ensure that no intermediate tensor is mistakenly counted twice by the memory profiler. \par 
 
-% Next, there must be a mechanism to analyze activations and gradients. Hooks are used for this purpose. Recall that there are many ways to use hooks, i.e. different types and also different ways to call each of these types. For activations, \texttt{register\_forward\_hook()} will internally be called on each of the layers. The function which is registered by the hook will inspect the activation output at the time it is being created, and measure its size in memory. This allows the profiler to directly measure how much device memory is being consumed by all the activations, broken down by layer name.
-% \par 
-
-% Gradients will also be analyzed with hooks, but this time by using \texttt{register\_backward\_hook()} on the model itself. This usage of the hooking mechanism will record all intermediate gradients that are calculated, not just the gradients for leaf nodes in the computational graph. The sizes of all these gradients will also be stored in the profiler's internal data structures.
-% \par 
-
-% Preliminary testing using this approach has been effective in capturing tensor data and determining memory usage.
-% \par 
+During the training algorithm, the forward and backward pass execute as normal. However, the hooks registered earlier are automatically run after every intermediate computation. The profiler keeps track of all the memory usage by each part of the model, and reports relevant diagnostics. The cache is also monitored, and statistics about its peak size and its current size at the end of each iteration are reported. \par 
 
 %%%%%%%%% RESULTS
-\section{PyTorch Memory Profiling Results}
+\section{PyTorch Memory Profiler Use and Results}
 \label{results}
+This section presents an example of how the profiler is used, along with profiling results on a GTX 1080 Ti GPU.
+% TODO: my cpu, OS, ram, etc.
+
 % TODO: show results from profiling 
 % A user-friendly and feature-complete profiler must be finalized. This requires combining the profiler components together, and further investigation about how to cleanly integrate the profiler with a user's PyTorch code. The current approach has been to insert a few API calls at specific sections of the training run - for example right before and after the \texttt{.backward()} call - which informs the user about the total memory usage of the program (including the cache), the total amount of the cache currently used by tensors, and a layer-by-layer breakdown of these tensors. Finally, given the rising usage of distributed computing techniques (several GPUs instead of just one) by the community, functionality to determine a device-by-device memory breakdown is needed. This is a straightforward extension of existing methods used by this profiler. The metrics gathered by the profiler must then be exported into visual graphs, which can be done using Matplotlib \cite{matplotlib}.
 % \par
