@@ -64,14 +64,14 @@ class memory_profiler:
             s+="iteration,"
             s+="peak_cached,"
             s+="current_cached,"
-            s+="total_activation_usage,"
+            s+="total_feature_map_usage,"
             s+="total_weight_usage,"
             for dp in self.params:
                 s+=self.params[dp]["name"]+","                
-            s+="total_gradient_usage,"
+            s+="total_layer_weight_gradient_usage,"
             for dp in self.params:
                 s+=self.params[dp]["name"] + "_grad,"
-            s+="intermediate_grads\n"
+            s+="intermediate_gradients\n"
             self.fname=OUTPUT_DIR + str(datetime.now().strftime("%Y%m%d%H%M%S")) + ".csv"
             with open(self.fname,"w") as file:
                 file.write(s)
@@ -225,22 +225,29 @@ class memory_profiler:
 
         #print('{:.<35s}{:.>5d} MB'.format("Peak allocated", MB(torch.cuda.max_memory_allocated())))
         #print('{:.<35s}{:.>5d} MB'.format("Current allocated", MB(torch.cuda.memory_allocated())))
-        print('{:.<35s}{:.>5d} MB'.format("Peak cached", MB(torch.cuda.max_memory_cached())))
-        print('{:.<35s}{:.>5d} MB'.format("Current cached", MB(torch.cuda.memory_cached())))
-        print('{:.<35s}{:.>5d} MB'.format("Total activation usage", MB(self.memory_used_by_feature_maps)))
+        print('{:.<45s}{:.>5d} MB'.format("Peak cached", MB(torch.cuda.max_memory_cached())))
+        print('{:.<45s}{:.>5d} MB'.format("Current cached", MB(torch.cuda.memory_cached())))
+        print('{:.<45s}{:.>5d} MB'.format("Total feature map usage", MB(self.memory_used_by_feature_maps)))
         
         # Layer-by-layer weight breakdown
-        print('\n{:.<35s}{:.>5d} MB'.format("Total weight usage", self.__total_layer_mem_MB()))
+        print('\n{:.<45s}{:.>5d} MB'.format("Total layer weight usage", self.__total_layer_mem_MB()))
         for dp in self.params:
-            print('{:<2s}{:.<33s}{:.>5d} MB'.format('',self.params[dp]["name"], MB(self.params[dp]["size"])))
+            print('{:<2s}{:.<43s}{:.>5d} MB'.format('',self.params[dp]["name"], MB(self.params[dp]["size"])))
+
+        # Total of layer gradients
+        total_layer_grad=0
+        for dp in self.params:
+            total_layer_grad+=self.params[dp]["grad_size"]
+        print('\n{:.<45s}{:.>5d} MB'.format("Total layer weight gradient usage", MB(total_layer_grad)))
 
         # Layer-by-layer gradient breakdown
         self.unnamed_gradient_mem=self.memory_used_by_gradients
-        print('\n{:.<35s}{:.>5d} MB'.format("Total gradient usage", MB(self.memory_used_by_gradients)))
         for dp in self.params:
-            print('{:<2s}{:.<33s}{:.>5d} MB'.format('',self.params[dp]["name"] + " grad", MB(self.params[dp]["grad_size"])))
+            print('{:<2s}{:.<43s}{:.>5d} MB'.format('',self.params[dp]["name"] + " grad", MB(self.params[dp]["grad_size"])))
             self.unnamed_gradient_mem-=self.params[dp]["grad_size"]
-        print('{:<2s}{:.<33s}{:.>5d} MB'.format('',"Intermediate grads", MB(self.unnamed_gradient_mem)))
+
+        # Other gradients that are not attributable to specific named layers
+        print('{:.<45s}{:.>5d} MB'.format("Intermediate gradients", MB(self.unnamed_gradient_mem)))
     
 
     def __write_info_csv(self):
@@ -266,7 +273,10 @@ class memory_profiler:
         s+=str(self.__total_layer_mem_MB())+","
         for dp in self.params:
             s+=str(MB(self.params[dp]["size"]))+","
-        s+=str(MB(self.memory_used_by_gradients))+","
+        total_layer_grad=0
+        for dp in self.params:
+            total_layer_grad+=self.params[dp]["grad_size"]
+        s+=str(MB(total_layer_grad))+","
         for dp in self.params:
             s+=str(MB(self.params[dp]["grad_size"]))+","
         s+=str(MB(self.unnamed_gradient_mem))+"\n"
@@ -319,4 +329,4 @@ def MB(B):
     """
     Convert B bytes to the nearest megabyte.
     """
-    return round(float(B)/1000000.0) 
+    return round(float(B)/1000000.0)
