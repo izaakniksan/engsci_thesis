@@ -48,25 +48,43 @@
 
 % Pages are numbered in submission mode, and unnumbered in camera-ready
 %\ifcvprfinal\pagestyle{empty}\fi
-\setcounter{page}{1}
+
 \begin{document}
-\pagenumbering{roman}
 %%%%%%%%% TITLE
 \thispagestyle{empty}
-\includepdf[pages=-,pagecommand={},width=\paperwidth]{thesis_cover_blank_title.pdf}
+\includepdf[pages=-,width=\paperwidth]{thesis_cover_blank_title.pdf}
 \clearpage
+\setcounter{page}{1}
+\pagenumbering{roman}
 %%%%%%%%% ABSTRACT
+\vspace*{\fill}
 \begin{singlespace}
 \begin{center}
-\section*{Abstract}
+\section*{ABSTRACT}
 \end{center}
 Machine learning is developing at an unprecedented pace, with applications to everything from self driving cars to medical imaging. Neural networks are the backbone of many of these machine learning implementations due to their inherent ability to learn from input data. Creating an effective machine learning model requires substantial training, which is typically done on Graphics Processing Units (GPUs). Training performance can be improved by loading large amounts of input data onto the GPU concurrently, which requires a large memory footprint. By developing tools to understand how a model is using GPU memory, researchers can gain insight into how to optimize their algorithms to work better on their hardware. This paper presents a novel memory profiler for PyTorch, a popular new machine learning framework. This new profiler's design is a departure from existing profilers, which were designed for frameworks with static computational graphs. The  profiler is an easy-to-use, flexible, low-overhead, and effective solution which decomposes the memory consumption into feature maps, weights, and gradients. It also presents detailed layer-by-layer metrics for further insight into how a model uses memory. The profiler requires minimal setup and can be integrated with existing PyTorch programs using only a few lines of code. Experiments were conducted on existing models such as Neural Collaborative Filtering and ResNet-50, and show the profiler's ability to correctly measure their memory consumption.
-\end{singlespace}
+\end{singlespace}\\\\
+\vspace*{\fill}
+\newpage 
+
+%%%%%%%%% ACKNOWLEDGEMENTS
+\vspace*{\fill}
+\begin{singlespace}
+\begin{center}
+\section*{ACKNOWLEDGEMENTS}
+\end{center}
+I would like to express my sincere gratitute to my thesis supervisor, Prof. Gennady Pekhimenko, for his continued support and mentorship during my research. I deeply appreciate the opportunity he has given me in allowing me to work with the EcoSystem research group at UofT. I would also like to thank Hongyu Zhu for the many hours he has spent guiding me during this project. His expertise was invaluable, and he was always willing to lend a helping hand. I greatly appreciate the time that Bojian Zheng spent explaining to me his previous work on the MXNet memory profiler. I have never met someone who responds to emails so quickly! And finally, I would like to thank members of the PyTorch forums who continually volunteer their time to answer questions. When documentation was lacking, reading the hundreds of posts on the forums helped fill gaps in my knowledge.
+\end{singlespace}\\\\
+\vspace*{\fill}
 \newpage 
 \tableofcontents
 \newpage
 
 \listoffigures
+\newpage 
+\listoftables
+\newpage 
+\lstlistoflistings 
 \newpage 
 
 \pagenumbering{arabic}
@@ -182,7 +200,7 @@ All of these machine learning frameworks employ directed acyclic \textit{computa
 
 The frameworks that these memory profilers were created for all use static computational graphs. MXNet, for example, allows users to define computational symbols in their front end language which are then compiled under the hood. Since this graph is defined at the start, the program does not need to wait until the forward pass to create the graph. This compiled graph contains all placeholders for input and output tensors. When it comes time to use the graph - i.e. pass some input data through the network in the forward pass - MXNet internally calls its \textit{executor} \cite{mxnet_executor}. The executor will then allocate the memory for the tensors required for the graph. This point is important because specific memory regions of the GPU are linked to parts of the computational graph, and remain linked for the duration of the program. To derive meaning from what each part of the computational graph does - for example the part of the graph representing a Long Short-Term Memory (LSTM) cell \cite{lstm} within a speech recognition model - the naming employed by the programmer is used. Listing \ref{listing:lstm_example} shows an example of how a programmer might define an LSTM cell in their code. Notice the name assignments that are inputted as function parameters - i2h meaning \enquote{input to hidden} and h2h meaning \enquote{hidden to hidden} - which are meaningful descriptors of the neural network's layers.
 
-\begin{lstlisting}[language=Python, caption={Symbolic naming of an LSTM cell, taken from the MXNet GPU memory profiler documentation \cite {mxnet_profiler}}, label={listing:lstm_example}]
+\begin{lstlisting}[language=Python, caption={Symbolic naming of an LSTM cell \cite {mxnet_profiler}}, label={listing:lstm_example}]
 i2h = symbol.FullyConnected(data=inputs, weight=self._iW, bias=self._iB,
                             num_hidden=self._num_hidden*4,
                             name='%si2h'%name)
@@ -286,7 +304,6 @@ Given that this paper is concerned with the memory usage of PyTorch, two questio
 \cvprsubsection{Models in PyTorch}
 \label{sec:models_in_pytorch}
 Tensors can only get a user so far. Ultimately, machine learning researchers need an interface to codify their machine learning models, which can then be trained and used. The main interface used to do this in PyTorch is the \texttt{nn.Module} class. For example, Listing \ref{listing:nn.module_example} defines a simple two-layer network:
-\par 
 \begin{lstlisting}[language=Python, caption={Definition of a simple two-layer neural network from the PyTorch documentation \cite{pytorch_tutorial}}, label={listing:nn.module_example}]
 class TwoLayerNet(torch.nn.Module):
     def __init__(self, D_in, H, D_out):
@@ -302,9 +319,8 @@ class TwoLayerNet(torch.nn.Module):
 Here, a network called \texttt{TwoLayerNet} is being defined. Notice how it inherits from \texttt{nn.Module}. The \texttt{\_\_init\_\_()} method of this network is invoked whenever an instance of it is created and a user generally instantiates one model which persists for the duration of their PyTorch program. This method is where the \textit{structure} of the model is defined - how many and what types of layers are present, which layers connect to what, and so on. The code here can be as complex or as simple as the user wishes; this modularity is what enables PyTorch to implement arbitrary neural networks. This example creates two linear layers using the PyTorch-provided \texttt{torch.nn.Linear} \footnote{The \texttt{torch.nn.Linear} layer applies the linear transformation $y=xA^T + b$} implementations \cite{pytorch_docs}. The input parameters \texttt{D\_in} and \texttt{D\_out} are used to specify the dimensions of these two layers.
 \par 
 
-One interesting feature of the \texttt{\_\_init\_\_()} method is that all \textit{learnable} layers of the network - i.e. ones that must be trained, which must have their gradients computed - are automatically registered and saved to the model's list of \texttt{parameters}. Using the \texttt{torch.nn.Linear} API handles this by default, but if one were to define a learnable tensor within a model themselves, they would have to wrap them with \texttt{torch.nn.Parameter}. For example, observe the following two tensor definitions: 
-
-\begin{lstlisting}[language=Python]
+One interesting feature of the \texttt{\_\_init\_\_()} method is that all \textit{learnable} layers of the network - i.e. ones that must be trained, which must have their gradients computed - are automatically registered and saved to the model's list of \texttt{parameters}. Using the \texttt{torch.nn.Linear} API handles this by default, but if one were to define a learnable tensor within a model themselves, they would have to wrap them with \texttt{torch.nn.Parameter}. For example, observe the following two tensor definitions in Listing \ref{listing:tensors_correct_incorrect_state_dict}: 
+\begin{lstlisting}[language=Python, caption={Example of how to create a tensor which will be saved in the \texttt{state\_dict} of a model}, label={listing:tensors_correct_incorrect_state_dict}]
 import torch
 class MyNetwork(torch.nn.Module):
     def __init__(self):
@@ -404,7 +420,7 @@ The prerequisites to use the memory profiler are:
 One of the largest benefits of this memory profiler is that there is no lengthy installation process. Other existing profilers require downloading a specific version of the machine learning framework, then patching the source code, then building the library from source; this PyTorch profiler is not version-dependent and no re-installation of the library is required.
 
 Once the GitHub repo has been cloned, add the path to the profiler to your path in your training code as follows:
-\begin{lstlisting}[language=Python]
+\begin{lstlisting}[language=Python,caption={How to import the PyTorch memory profiler into existing training code}, label={listing:profiler_import_code}]
 import sys
 sys.path.append('<path to pytorch_mem_profiler/ directory>')
 from pytorch_mem_profiler import *
@@ -417,8 +433,8 @@ There are only three steps (and only four lines of code) required to start using
 \item Call \texttt{.record\_stats()} after every iteration
 \item Call \texttt{.epoch\_end()} after every epoch
 \end{myitemize}
-The usage of the profiler will be demonstrated using the Neural Collaborative Filtering model as an example. Below is example code from training code \cite{tbd_suite} which instantiates a model. On line 14, the model is sent to the GPU.
-\begin{lstlisting}[language=Python]
+The usage of the profiler will be demonstrated using the Neural Collaborative Filtering model as an example. Listing \ref{listing:ncf_model_init} shows an example from training code \cite{tbd_suite} which instantiates a model. On line 14, the model is sent to the GPU.
+\begin{lstlisting}[language=Python, caption={Initialization of an NCF model}, label={listing:ncf_model_init}]
 ...
 # Create model
 model = NeuMF(nb_users, nb_items,
@@ -441,13 +457,13 @@ Next, right before the training loop, an instance of the \texttt{memory\_profile
 \item \textbf{print\_period} (postive integer) determines the number of iterations between memory reporting (default value is 1).
 \item \textbf{csv} (boolean) allows profiling data to also be exported into a .csv file located in \texttt{./memory\_csv\_data/} (default value is False).
 \end{myitemize}
-The profiler initialized below will report statistics every 5 iterations to the terminal and to a csv file. The \texttt{global} keyword ensures that the profiler is accessible anywhere within the main training program.
-\begin{lstlisting}[language=Python]
+The profiler initialized in Listing \ref{listing:profiler_initialization_global} will report statistics every 5 iterations to the terminal and to a csv file. The \texttt{global} keyword ensures that the profiler is accessible anywhere within the main training program.
+\begin{lstlisting}[language=Python, caption={How to create an instance of the PyTorch memory profiler}, label={listing:profiler_initialization_global}]
 global profiler
 profiler = memory_profiler(model, print_period=5, csv=True)
 \end{lstlisting}
-The final step is to call \texttt{.record\_stats()} at the end of each iteration and \texttt{.epoch\_end()} at the end of each epoch. In the following training loop, Lines 33 and 35 were added:
-\begin{lstlisting}[language=Python]
+The final step is to call \texttt{.record\_stats()} at the end of each iteration and \texttt{.epoch\_end()} at the end of each epoch. In the training loop shown in Listing \ref{listing:how_to_add_profiler_to_training_code}, Lines 33 and 35 were added:
+\begin{lstlisting}[language=Python, caption={Example NCF training code with lines 33 and 35 added to enable memory profiling}, label={listing:how_to_add_profiler_to_training_code}]
 # Epoch loop
 for epoch in range(args.epochs):
 
@@ -664,7 +680,7 @@ Figure \ref{fig:resnet_bar_graph} shows the memory usage of the feature maps, la
 \label{fig:resnet_bar_graph}
 \end{figure}
 
-Using existing memory profilers, the EcoSystem team has gathered memory breakdowns for ResNet-50 implementations in other frameworks. While the system specifications of those experiments are not identical to those used for the PyTorch experiments (notably, a Quadro P4000 GPU was used), the breakdowns are similar. This further demonstrates the accuracy of this proposed PyTorch memory profiler and its ability to correctly characterize training memory usage. The results for those breakdowns are shown in Figure \ref{fig:other_frameworks_resnet}.
+Using existing memory profilers, the EcoSystem research group has gathered memory breakdowns for ResNet-50 implementations in other frameworks. While the system specifications of those experiments are not identical to those used for the PyTorch experiments (notably, a Quadro P4000 GPU was used), the breakdowns are similar. This further demonstrates the accuracy of this proposed PyTorch memory profiler and its ability to correctly characterize training memory usage. The results for those breakdowns are shown in Figure \ref{fig:other_frameworks_resnet}.
 
 \begin{figure}[H]
 \centering
