@@ -176,7 +176,7 @@ All of these machine learning frameworks employ directed acyclic \textit{computa
 
 The frameworks that these memory profilers were created for all use static computational graphs. MXNet, for example, allows users to define computational symbols in their front end language which are then compiled under the hood. Since this graph is defined at the start, the program does not need to wait until the forward pass to create the graph. This compiled graph contains all placeholders for input and output tensors. When it comes time to use the graph - i.e. pass some input data through the network in the forward pass - MXNet internally calls its \textit{executor} \cite{mxnet_executor}. The executor will then allocate the memory for the tensors required for the graph. This point is important because specific memory regions of the GPU are linked to parts of the computational graph, and remain linked for the duration of the program. To derive meaning from what each part of the computational graph does - for example the part of the graph representing a Long Short-Term Memory (LSTM) cell \cite{lstm} within a speech recognition model - the naming employed by the programmer is used. Listing \ref{listing:lstm_example} shows an example of how a programmer might define an LSTM cell in their code. Notice the name assignments that are inputted as function parameters - i2h meaning \enquote{input to hidden} and h2h meaning \enquote{hidden to hidden} - which are meaningful descriptors of the neural network's layers.
 
-\begin{lstlisting}[language=Python, caption={Symbolic naming of an LSTM cell, taken from the MXNet GPU profiler documentation \cite {mxnet_profiler}}, label={listing:lstm_example}]
+\begin{lstlisting}[language=Python, caption={Symbolic naming of an LSTM cell, taken from the MXNet GPU memory profiler documentation \cite {mxnet_profiler}}, label={listing:lstm_example}]
 i2h = symbol.FullyConnected(data=inputs, weight=self._iW, bias=self._iB,
                             num_hidden=self._num_hidden*4,
                             name='%si2h'%name)
@@ -198,7 +198,7 @@ The MXNet memory profiler's main challenge is linking symbol names to specific \
 \centering
 \includegraphics[width=.8\textwidth]{mxnet_profiler_design.png}
 \captionsetup{width=0.7\linewidth}
-\caption{MXNet GPU Profiler system design \cite{mxnet_profiler}}
+\caption{MXNet GPU memory profiler system design \cite{mxnet_profiler}}
 \label{fig:mxnet_design}
 \end{figure}
 
@@ -440,10 +440,9 @@ The profiler initialized below will report statistics every 5 iterations to the 
 global profiler
 profiler = memory_profiler(model, print_period=5, csv=True)
 \end{lstlisting}
-The final step is to call \texttt{.record\_stats()} at the end of each iteration and \texttt{.epoch\_end()} at the end of each epoch. In the following training loop, Lines 31 and 33 were added:
-
+The final step is to call \texttt{.record\_stats()} at the end of each iteration and \texttt{.epoch\_end()} at the end of each epoch. In the following training loop, Lines 33 and 35 were added:
 \begin{lstlisting}[language=Python]
-# Training loop
+# Epoch loop
 for epoch in range(args.epochs):
 
     model.train()
@@ -452,6 +451,8 @@ for epoch in range(args.epochs):
     begin = time.time()
     loader = tqdm.tqdm(train_dataloader)
     length = len(loader)
+    
+    # Iteration loop
     for batch_index, (user, item, label) in enumerate(loader):
         user = torch.autograd.Variable(user, requires_grad=False)
         item = torch.autograd.Variable(item, requires_grad=False)
@@ -480,7 +481,7 @@ for epoch in range(args.epochs):
                             use_cuda=use_cuda, output=valid_results_file,
                             epoch=epoch, processes=args.processes)
 \end{lstlisting}
-The results will be printed as the training progresses. Since PyTorch uses a memory caching strategy, tensors dynamically take and release from the GPU memory cache. The profiler will give you insight into the cache size, as well as a detailed layer-by-layer breakdown of what the memory is being used for:
+The results will be printed as the training progresses. Since PyTorch uses a memory caching strategy, tensors dynamically take and release from the GPU memory cache. The profiler will give you insight into the cache size, as well as a detailed layer-by-layer breakdown of what the memory is being used for. As the training is running, the csv output file located in \texttt{./memory\_csv\_data/} will become populated with memory diagnostics. Additionally, the following table will be printed to the screen:
 \begin{verbatim}
 *******************************************
 Memory Usage for Iteration 85 of Epoch 1
@@ -526,7 +527,7 @@ Intermediate gradients................34 MB
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Profiling Results}
 \label{profiling_results}
-This section presents memory profiling results on real-world deep neural networks. All models presented here have open-source implementations and training code available on TBD Suite \cite{tbd_suite}. The system used for training benchmarks is described in Table \ref{table:system_specs}.
+This section presents memory profiling results for the training of modern deep neural networks. All models presented here have open-source implementations and training code available on TBD Suite \cite{tbd_suite}. The system used for training benchmarks is described in Table \ref{table:system_specs}.
 
 \begin{table}[H]
 \centering
@@ -550,7 +551,7 @@ Host Memory   & 16 GB DDR4, 3200 MHz                                     \\
 %     RESULTS :: Neural Collaborative Filtering (NCF)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\cvprsubsection{Neural Collaborative Filtering (NCF) Benchmarks}
+\cvprsubsection{Neural Collaborative Filtering (NCF) Training Benchmarks}
 This section presents the memory breakdown for the training of a Neural Collaborative Filtering \cite{ncf} model with PyTorch. The MovieLens 20M dataset \cite{ml-20m} was used for input training data. The hyperparameters used for all training experiments are listed in Table \ref{table:ncf_hyperparameters}.
 
 
@@ -573,7 +574,7 @@ Number of dataloader workers  & 0 \\
 \label{table:ncf_hyperparameters}
 \end{table}
 
-Figure \ref{fig:recommendation_bar_graph} shows the memory usage of the feature maps, layer weights, and layer gradients for different mini-batch sizes. Feature maps consume the majority of the GPU memory, which is especially evident as the mini-batch size increases. The memory usage of layer weights and the gradients of these layer weights are not dependent on the mini-batch size. Table \ref{table:ncf_full_breakdown} shows a more detailed memory breakdown. The intermediate gradients are tensors which were seen by the profiler's hooks during the backward pass, but whose memory was not attributable to the named layer weight gradients. The memory consumed by these intermediate tensors did increase with mini-batch size.
+Figure \ref{fig:recommendation_bar_graph} shows the memory usage of the feature maps, layer weights, and layer gradients for different mini-batch sizes. Feature maps consume the majority of the GPU memory, which is especially evident as the mini-batch size increases. The memory usage of layer weights and the gradients of these layer weights are not dependent on the mini-batch size. Table \ref{table:ncf_full_breakdown} shows a more detailed memory breakdown. The intermediate gradients listed in the last row are tensors which were seen by the profiler's hooks during the backward pass, but whose memory was not attributable to the named layer weight gradients. The memory consumed by these intermediate tensors did increase with mini-batch size.
 
 \begin{figure}[H]
 \centering
@@ -631,7 +632,7 @@ final.bias grad                   & 0                          & 0              
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\cvprsubsection{ResNet-50 Benchmarks}
+\cvprsubsection{ResNet-50 Training Benchmarks}
 This section presents the memory breakdown for the training of a ResNet-50 v2 \cite{resnet} model on PyTorch. The ImageNet LSVRC 2012 dataset \cite{imagenet2012} was used for input training data. The hyperparemeters used for all training experiments are listed in Table \ref{table:resnet_hyperparameters}.
 
 \begin{table}[H]
@@ -657,7 +658,7 @@ Figure \ref{fig:resnet_bar_graph} shows the memory usage of the feature maps, la
 \label{fig:resnet_bar_graph}
 \end{figure}
 
-Using existing memory profilers, the EcoSystem team has gathered memory breakdowns for ResNet-50 implementations in other frameworks. While the system specifications of those experiments are not identical to those used for the PyTorch experiments (notably, a Quadro P4000 GPU was used), the breakdowns are similar. This further demonstrates the accuracy of this proposed PyTorch memory profiler and its ability to correctly characterize training memory usage. The results for those breakdowns can be found in Figure \ref{fig:other_frameworks_resnet}.
+Using existing memory profilers, the EcoSystem team has gathered memory breakdowns for ResNet-50 implementations in other frameworks. While the system specifications of those experiments are not identical to those used for the PyTorch experiments (notably, a Quadro P4000 GPU was used), the breakdowns are similar. This further demonstrates the accuracy of this proposed PyTorch memory profiler and its ability to correctly characterize training memory usage. The results for those breakdowns are shown in Figure \ref{fig:other_frameworks_resnet}.
 
 \begin{figure}[H]
 \centering
@@ -669,10 +670,9 @@ Using existing memory profilers, the EcoSystem team has gathered memory breakdow
 
 
 %%%%%%%%% CONCLUSION
-\section{Conclusion and Future Work}
+\section{Conclusion}
 \label{conclusion}
-% TODO: future work: more investigation into intermediate grads, and work on layer-by-layer activation breakdown
-
+In this paper, a novel memory profiling tool for PyTorch was proposed. Given the differences between how PyTorch handles GPU memory compared to other frameworks - namely its use of caching and dynamic computational graphs - new methods were employed to design and implement this profiler. Given the importance of GPU memory in the training of large and complex modern deep neural networks, and with the increasing popularity of PyTorch, a tool which provides insight into how memory is being used will benefit the community of researchers. Due to the recent rise of multi-GPU training, extending this profiler to provide a device-based breakdown of memory usage is an area for future work. As new models are created and implemented, it is hoped that this PyTorch memory profiler will shed light on new optimization techniques that can their increase efficiency and performance.
 
 %%%%%%%%% APPENDIX
 \newpage
