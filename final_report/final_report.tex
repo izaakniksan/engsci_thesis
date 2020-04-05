@@ -20,6 +20,7 @@
 \usepackage{fancyvrb}
 \usepackage{diagbox}
 \usepackage{float}
+\usepackage{setspace}
 % Include other packages here, before hyperref.
 
 \newenvironment{myitemize}
@@ -63,7 +64,7 @@
 \section*{ABSTRACT}
 \end{center}
 Machine learning is developing at an unprecedented pace, with applications to everything from self driving cars to medical imaging. Neural networks are the backbone of many of these machine learning implementations due to their inherent ability to learn from input data. Creating an effective machine learning model requires substantial training, which is typically done on Graphics Processing Units (GPUs). Training performance can be improved by loading large amounts of input data onto the GPU concurrently, which requires a large memory footprint. By developing tools to understand how a model is using GPU memory, researchers can gain insight into how to optimize their algorithms to work better on their hardware. This paper presents a novel memory profiler for PyTorch, a popular new machine learning framework. This new profiler's design is a departure from existing profilers, which were designed for frameworks with static computational graphs. The  profiler is an easy-to-use, flexible, low-overhead, and effective solution which decomposes the memory consumption into feature maps, weights, and gradients. It also presents detailed layer-by-layer metrics for further insight into how a model uses memory. The profiler requires minimal setup and can be integrated with existing PyTorch programs using only a few lines of code. Experiments were conducted on existing models such as Neural Collaborative Filtering and ResNet-50, and show the profiler's ability to correctly measure their memory consumption.
-\end{singlespace}\\\\
+\end{singlespace}
 \vspace*{\fill}
 \newpage 
 
@@ -73,8 +74,8 @@ Machine learning is developing at an unprecedented pace, with applications to ev
 \begin{center}
 \section*{ACKNOWLEDGEMENTS}
 \end{center}
-I would like to express my sincere gratitute to my thesis supervisor, Prof. Gennady Pekhimenko, for his continued support and mentorship during my research. I deeply appreciate the opportunity he has given me in allowing me to work with the EcoSystem research group at UofT. I would also like to thank Hongyu Zhu for the many hours he has spent guiding me during this project. His expertise was invaluable, and he was always willing to lend a helping hand. I greatly appreciate the time that Bojian Zheng spent explaining to me his previous work on the MXNet memory profiler. I have never met someone who responds to emails so quickly! And finally, I would like to thank members of the PyTorch forums who continually volunteer their time to answer questions. When documentation was lacking, reading the hundreds of posts on the forums helped fill gaps in my knowledge.
-\end{singlespace}\\\\
+I would like to express my sincere gratitute to my thesis supervisor, Prof. Gennady Pekhimenko, for his continued support and mentorship during my research. I deeply appreciate the opportunity he has given me in allowing me to work with the EcoSystem research group at UofT. I would also like to thank Hongyu Zhu for the many hours he has spent guiding me during this project. His expertise was invaluable, and he was always willing to lend a helping hand. I greatly appreciate the time that Bojian Zheng spent explaining to me his previous work on the MXNet memory profiler. And finally, I would like to thank the members of the PyTorch forums who continually volunteer their time to answer questions. When documentation was lacking, reading through countless of posts on the forums helped fill gaps in my knowledge.
+\end{singlespace}
 \vspace*{\fill}
 \newpage 
 \tableofcontents
@@ -694,7 +695,11 @@ Using existing memory profilers, the EcoSystem research group has gathered memor
 %%%%%%%%% CONCLUSION
 \section{Conclusion}
 \label{conclusion}
-In this paper, a novel memory profiling tool for PyTorch was proposed. Given the differences between how PyTorch handles GPU memory compared to other frameworks - namely its use of caching and dynamic computational graphs - new methods were employed to design and implement this profiler. Given the importance of GPU memory in the training of large and complex modern deep neural networks, and with the increasing popularity of PyTorch, a tool which provides insight into how memory is being used will benefit the community of researchers. Due to the recent rise of multi-GPU training, extending this profiler to provide a device-based breakdown of memory usage is an area for future work. As new models are created and implemented, it is hoped that this PyTorch memory profiler will shed light on new optimization techniques that can increase training efficiency and performance.
+In this paper, a novel memory profiling tool for PyTorch was proposed. Given the differences between how PyTorch handles GPU memory compared to other frameworks - namely its use of caching and dynamic computational graphs - new methods were employed to design and implement this profiler. The profiler is easily integrated into existing training code, and has proven to be effective in capturing the training memory usage of the Neural Collaborative Filtering and ResNet-50 models. Given the importance of GPU memory in the training of large and complex modern deep neural networks, and with the increasing popularity of PyTorch, a tool which provides insight into how memory is being used will benefit the community of researchers. Due to the recent rise of multi-GPU training, extending this profiler to provide a device-based breakdown of memory usage is an area for future work. As new models are created and implemented, it is hoped that this PyTorch memory profiler will shed light on new optimization techniques that can increase training efficiency and performance.
+
+%%%%%%%%% REFERENCES
+\newpage
+\printbibliography
 
 %%%%%%%%% APPENDIX
 \newpage
@@ -804,20 +809,10 @@ module.layer4.2.conv3.weight\_grad        & 4    \\ \midrule
 \includegraphics[width=0.8\textwidth]{loss_functions.png}
 \end{figure}
 \begin{center}A guide to loss functions, created by Janocha and Czarnecki \cite{loss_functions_paper}.\end{center}
-\newpage
-
 
 \end{appendices}
 
-
-
-
-
-%% TODO: get list of loss and activation functions and add them to appendix, then \ref them in the paper
-
-
-
-%%%%%%%%% REFERENCES
-\newpage
-\printbibliography
+\null\newpage
+\thispagestyle{empty}
+\null
 \end{document}
