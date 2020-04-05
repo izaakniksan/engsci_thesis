@@ -55,6 +55,14 @@
 \thispagestyle{empty}
 \includepdf[pages=-,pagecommand={},width=\paperwidth]{thesis_cover_blank_title.pdf}
 \clearpage
+%%%%%%%%% ABSTRACT
+\begin{singlespace}
+\begin{center}
+\section*{Abstract}
+\end{center}
+Machine learning is developing at an unprecedented pace, with applications to everything from self driving cars to medical imaging. Neural networks are the backbone of many of these machine learning implementations due to their inherent ability to learn from input data. Creating an effective machine learning model requires substantial training, which is typically done on Graphics Processing Units (GPUs). Training performance can be improved by loading large amounts of input data onto the GPU concurrently, which requires a large memory footprint. By developing tools to understand how a model is using GPU memory, researchers can gain insight into how to optimize their algorithms to work better on their hardware. This paper presents a novel memory profiler for PyTorch, a popular new machine learning framework. This new profiler's design is a departure from existing profilers, which were designed for frameworks with static computational graphs. The  profiler is an easy-to-use, flexible, low-overhead, and effective solution which decomposes the memory consumption into feature maps, weights, and gradients. It also presents detailed layer-by-layer metrics for further insight into how a model uses memory. The profiler requires minimal setup and can be integrated with existing PyTorch programs using only a few lines of code. Experiments were conducted on existing models such as Neural Collaborative Filtering and ResNet-50, and show the profiler's ability to correctly measure their memory consumption.
+\end{singlespace}
+\newpage 
 \tableofcontents
 \newpage
 
@@ -62,10 +70,7 @@
 \newpage 
 
 \pagenumbering{arabic}
-%%%%%%%%% ABSTRACT
-\section{Abstract}
-Machine learning is developing at an unprecedented pace, with applications to everything from self driving cars to medical imaging. Neural networks are the backbone of many of these machine learning implementations due to their inherent ability to learn from input data. Creating an effective machine learning model requires substantial training, which is typically done on Graphics Processing Units (GPUs). Training performance can be improved by loading large amounts of input data onto the GPU concurrently, which requires a large memory footprint. By developing tools to understand how a model is using GPU memory, researchers can gain insight into how to optimize their algorithms to work better on their hardware. This paper presents a novel memory profiler for PyTorch, a popular new machine learning framework. This new profiler's design is a departure from existing profilers, which were designed for frameworks with static computational graphs. The  profiler is an easy-to-use, flexible, low-overhead, and effective solution which decomposes the memory consumption into feature maps, weights, and gradients. It also presents detailed layer-by-layer metrics for further insight into how a model uses memory. The profiler requires minimal setup and can be integrated with existing PyTorch programs using only a few lines of code. Experiments were conducted on existing models such as Neural Collaborative Filtering and ResNet-50, and show the profiler's ability to correctly measure their memory consumption.
-\par 
+
 
 
 %%%%%%%%% INTRODUCTION
@@ -75,6 +80,7 @@ Deep neural networks (DNNs) have a history dating back over half a century, with
 The EcoSystem research group at the University of Toronto has developed open-source memory profiling tools for several machine learning frameworks, including MXNet \cite{mxnet_profiler}, TensorFlow \cite{tensorflow}, and CNTK \cite{cntk}. These tools were created by directly logging all GPU memory allocations made by the framework. Most such allocations happen at the start of the program when the static computational graph (representing the training algorithm) is being created. The profiler then links these allocations to the part of the computational graph which they correspond to, making it possible to create a detailed memory breakdown of the model. The difficulty with creating a memory profiler for PyTorch lies in the fact that PyTorch \textit{(a)} uses \textit{dynamic} computational graphs, one of which is created every iteration of training, and \textit{(b)} incrementally allocates large chunks of GPU memory to create a \textit{cache}. Throughout training, memory is continually being taken and released from the cache as the forward and backward passes progress. \par 
 
 To profile memory with PyTorch, the fastest-growing machine learning framework today, new strategies and insight are required. This paper first provides background on the topic, then presents a novel memory profiler for PyTorch along with results of it being used on real models. \par 
+\newpage
 
 %%%%%%%%% BACKGROUND 
 \section{Computational Machine Learning and Existing Profilers}
@@ -201,6 +207,7 @@ The MXNet memory profiler's main challenge is linking symbol names to specific \
 \caption{MXNet GPU memory profiler system design \cite{mxnet_profiler}}
 \label{fig:mxnet_design}
 \end{figure}
+\newpage
 
 %%%%%%%%% METHODS
 \section{Designing a PyTorch Memory Profiler}
@@ -347,7 +354,7 @@ This complicated set of procedures - where the total allocated memory routinely 
 There are several variants of hooks in PyTorch, but unfortunately they have very little documentation. Still, the insight they bring is valuable, despite the fact that most information about them is only found spread across the PyTorch forums \cite{pytorch_forum}. Hooks are \textit{functions} which can be registered on either a \texttt{nn.Module} or a \texttt{Tensor} object. The three methods used to register hooks are: \texttt{register\_hook()}, \texttt{register\_forward\_hook()}, and \texttt{register\_backward\_hook()}. Depending on the type of hook, during the backward or forward pass these functions are called. Hooks allow direct access to the intermediate feature maps and gradients at the time of their creation - exactly what is needed for a memory profiler.
 \par 
 
-%%%%%%%%% PROGRESS TO DATE::Designing the Profiler
+%%%%%%%%% METHODS::Designing the Profiler
 \cvprsubsection{Designing the Profiler}
 In the face of all the internal complexities that have been outlined thus far, it should be clear that new mechanisms must be created to profile PyTorch's device memory usage. A proposed strategy to attain a layer-by-layer breakdown into weights, feature maps, and gradients is developed using knowledge and methods that have been developed in previous sections. It is noted that this strategy departs from the strategies used with existing profilers in that it only uses the front end Python API available in PyTorch. This means that the profiler is version-agnostic and thus future-proof. Given the particularly fast-changing nature of PyTorch, with several recent large-scale design changes such as the variable-tensor merger \cite{pytorch_variable_tensor_merger}, having a profiler that does not have to be re-coded each time a new update arrives is a significant benefit. 
 \par 
@@ -380,7 +387,7 @@ Figure \ref{fig:profiler_system_diagram} shows a system diagram of the PyTorch m
 Next, the profiler registers forward and backward hooks. These allow the profiler to inspect feature maps and gradients, respectively. The Autograd engine accumulates values internally in C++ buffers, which are only exposed via these hooks. The hooks that are registered are specialized functions defined within the profiler to gather memory consumption metrics. Importantly, the data pointers of feature maps and gradients are also collected during runtime to ensure that no intermediate tensor is mistakenly counted twice by the memory profiler. \par 
 
 During the training algorithm, the forward and backward passes execute as normal. However, the hooks registered earlier are automatically run after every intermediate computation. The profiler keeps track of the memory usage by each part of the model, and reports relevant diagnostics. The cache is also monitored, and statistics about its peak size and its current size at the end of each iteration are reported. \par 
-
+\newpage
 %%%%%%%%% PROFILER GUIDE
 \section{Profiler Guide}
 \label{profiler_guide}
@@ -518,7 +525,7 @@ Total layer weight gradient usage....127 MB
   final.bias grad......................0 MB
 Intermediate gradients................34 MB
 \end{verbatim}
-
+\newpage
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
 %     RESULTS
@@ -574,10 +581,10 @@ Number of dataloader workers  & 0 \\
 \end{table}
 
 Figure \ref{fig:recommendation_bar_graph} shows the memory usage of the feature maps, layer weights, and layer gradients for different mini-batch sizes. Feature maps consume the majority of the GPU memory, which is especially evident as the mini-batch size increases. The memory usage of layer weights and the gradients of these layer weights are not dependent on the mini-batch size. Table \ref{table:ncf_full_breakdown} shows a more detailed memory breakdown. The intermediate gradients listed in the last row are tensors which were seen by the profiler's hooks during the backward pass, but whose memory was not attributable to the named layer weight gradients. The memory consumed by these intermediate tensors did increase with mini-batch size.
-
+\\\\
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.9\textwidth]{recommendation_bar_graphs.PNG}
+\includegraphics[width=1.0\textwidth]{recommendation_bar_graphs.PNG}
 \captionsetup{width=0.8\linewidth}
 \caption{Feature map, layer weight, and layer weight gradient memory usage of NCF training for different batch sizes}
 \label{fig:recommendation_bar_graph}
@@ -666,7 +673,7 @@ Using existing memory profilers, the EcoSystem team has gathered memory breakdow
 \caption{Memory breakdowns of ResNet-50 training for other frameworks \cite{tbd_benchmarks}}
 \label{fig:other_frameworks_resnet}
 \end{figure}
-
+\newpage
 
 %%%%%%%%% CONCLUSION
 \section{Conclusion}
