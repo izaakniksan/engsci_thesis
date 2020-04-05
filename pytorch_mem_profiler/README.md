@@ -48,7 +48,7 @@ Next, we initialize an instance of the ```memory_profiler``` class before we sta
 
 >```csv``` (boolean) allows profiling data to also be exported into a .csv file located in ```./memory_csv_data/``` . Default is False.
 
-Below, we initialize the profiler, which will report memory statistics every 5 iterations to the terminal and to a .csv file. The global keyword ensures that the profiler is accessible anywhere within the training program. Ensure that the profiler is initialized right before the training loop.
+Below, we initialize the profiler, which will report memory statistics every 5 iterations to the terminal and to a .csv file. The global keyword ensures that the profiler is accessible anywhere within the main training program. Ensure that the profiler is initialized right before the training loop.
 
 ```Python
 global profiler
@@ -77,9 +77,9 @@ Memory Usage for Iteration 85 of Epoch 1
 *******************************************
 Peak cached..........................857 MB
 Current cached.......................857 MB
-Total activation usage...............301 MB
+Total feature map usage..............301 MB
 
-Total weight usage...................127 MB
+Total layer weight usage.............127 MB
   mf_user_embed.weight................35 MB
   mf_item_embed.weight.................7 MB
   mlp_user_embed.weight...............71 MB
@@ -93,7 +93,7 @@ Total weight usage...................127 MB
   final.weight.........................0 MB
   final.bias...........................0 MB
 
-Total gradient usage.................161 MB
+Total layer weight gradient usage....127 MB
   mf_user_embed.weight grad...........35 MB
   mf_item_embed.weight grad............7 MB
   mlp_user_embed.weight grad..........71 MB
@@ -106,5 +106,5 @@ Total gradient usage.................161 MB
   mlp.2.bias grad......................0 MB
   final.weight grad....................0 MB
   final.bias grad......................0 MB
-  Intermediate grads..................34 MB
+Intermediate gradients................34 MB
 ```
