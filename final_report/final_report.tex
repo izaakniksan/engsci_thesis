@@ -22,6 +22,13 @@
 \usepackage{float}
 % Include other packages here, before hyperref.
 
+\newenvironment{myitemize}
+{ \begin{itemize}
+    \setlength{\itemsep}{0pt}
+    \setlength{\parskip}{0pt}
+    \setlength{\parsep}{0pt}     }
+{ \end{itemize}                  } 
+
 % If you comment hyperref and then uncomment it, you should delete
 % egpaper.aux before re-running latex.  (Or just hit 'q' on the first latex
 % run, let it finish, and you should be clear).
@@ -378,14 +385,139 @@ During the training algorithm, the forward and backward passes execute as normal
 %%%%%%%%% PROFILER GUIDE
 \section{Profiler Guide}
 \label{profiler_guide}
-This section walks through an example of how the PyTorch memory profiler is to be used.
-\cvprsubsection{Setup}
-% prereqs, initialization
+This section walks through an example of how the PyTorch memory profiler is to be used. The profiler is available for use on GitHub \footnote{\href{https://github.com/izaakniksan/engsci\_thesis/tree/master/pytorch\_mem\_profiler}{https://github.com/izaakniksan/engsci\_thesis/tree/master/pytorch\_mem\_profiler}}, with detailed setup and usage instructions.
 
-\cvprsubsection{Usage}
+\cvprsubsection{Profiler Setup}
+The prerequisites to use the memory profiler are: 
+\begin{myitemize}
+\item Python 3.6 or later
+\item PyTorch (https://pytorch.org/)
+\item CUDA (any version, as long as the training code uses it)
+\end{myitemize}
 
+One of the largest benefits of this memory profiler is that there is no lengthy installation process. Other existing profilers require downloading a specific version of the machine learning framework, then patching the source code, then building the library from source; this PyTorch profiler is not version-dependent and no re-installation of the library is required.
 
-% TODO: link my github
+Once the GitHub repo has been cloned, add the path to the profiler to your path in your training code as follows:
+\begin{lstlisting}[language=Python]
+import sys
+sys.path.append('<path to pytorch_mem_profiler/ directory>')
+from pytorch_mem_profiler import *
+\end{lstlisting}
+
+\cvprsubsection{Profiler Usage}
+There are only three steps (and only four lines of code) required to start using the profiler:
+\begin{myitemize}
+\item Create a profiler instance
+\item Call \texttt{.record\_stats()} after every iteration
+\item Call \texttt{.epoch\_end()} after every epoch
+\end{myitemize}
+The usage of the profiler will be demonstrated using the Neural Collaborative Filtering model as an example. Below is example code from training code \cite{tbd_suite} which instantiates a model. On line 14, the model is sent to the GPU.
+\begin{lstlisting}[language=Python]
+...
+# Create model
+model = NeuMF(nb_users, nb_items,
+              mf_dim=args.factors, mf_reg=0.,
+              mlp_layer_sizes=args.layers,
+              mlp_layer_regs=[0. for i in args.layers])
+
+# Add optimizer and loss to graph
+optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
+criterion = nn.BCEWithLogitsLoss()
+
+if use_cuda:
+    # Move model and loss to GPU
+    model = model.cuda()
+    criterion = criterion.cuda()
+...
+\end{lstlisting}
+Next, right before the training loop, an instance of the \texttt{memory\_profiler} class is instantiated. The model is passed in as an input argument, along with two other optional arguments:
+\begin{myitemize}
+\item \textbf{print\_period} (postive integer) determines the number of iterations between memory reporting. The default value is 1.
+\item \textbf{csv} (boolean) allows profiling data to also be exported into a .csv file located in ./memory\_csv\_data/ . The default is False.
+\end{myitemize}
+The profiler initialized below will report statistics every 5 iterations to the terminal and to a csv file. The \texttt{global} keyword ensures that the profiler is accessible anywhere within the main training program.
+\begin{lstlisting}[language=Python]
+global profiler
+profiler = memory_profiler(model, print_period=5, csv=True)
+\end{lstlisting}
+The final step is to call \texttt{.record\_stats()} at the end of each iteration and \texttt{.epoch\_end()} at the end of each epoch. In the following training loop, Lines 31 and 33 were added:
+
+\begin{lstlisting}[language=Python]
+# Training loop
+for epoch in range(args.epochs):
+
+    model.train()
+    losses = utils.AverageMeter()
+
+    begin = time.time()
+    loader = tqdm.tqdm(train_dataloader)
+    length = len(loader)
+    for batch_index, (user, item, label) in enumerate(loader):
+        user = torch.autograd.Variable(user, requires_grad=False)
+        item = torch.autograd.Variable(item, requires_grad=False)
+        label = torch.autograd.Variable(label, requires_grad=False)
+        if use_cuda:
+            user = user.cuda(async=True)
+            item = item.cuda(async=True)
+            label = label.cuda(async=True)
+
+        outputs = model(user, item)
+        loss = criterion(outputs, label)
+        losses.update(loss.data.item(), user.size(0))
+
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        # Save stats to file
+        description = ('Epoch {} Loss {loss.val:.4f} ({loss.avg:.4f})'
+                       .format(epoch, loss=losses))
+        loader.set_description(description)
+        profiler.record_stats()
+
+    profiler.epoch_end()
+    hits, ndcgs = val_epoch(model, test_ratings, test_negs, args.topk,
+                            use_cuda=use_cuda, output=valid_results_file,
+                            epoch=epoch, processes=args.processes)
+\end{lstlisting}
+The results will be printed as the training progresses. Since PyTorch uses a memory caching strategy, tensors dynamically take and release from the GPU memory cache. The profiler will give you insight into the cache size, as well as a detailed layer-by-layer breakdown of what the memory is being used for:
+\begin{verbatim}
+*******************************************
+Memory Usage for Iteration 85 of Epoch 1
+*******************************************
+Peak cached..........................857 MB
+Current cached.......................857 MB
+Total feature map usage..............301 MB
+
+Total layer weight usage.............127 MB
+  mf_user_embed.weight................35 MB
+  mf_item_embed.weight.................7 MB
+  mlp_user_embed.weight...............71 MB
+  mlp_item_embed.weight...............14 MB
+  mlp.0.weight.........................0 MB
+  mlp.0.bias...........................0 MB
+  mlp.1.weight.........................0 MB
+  mlp.1.bias...........................0 MB
+  mlp.2.weight.........................0 MB
+  mlp.2.bias...........................0 MB
+  final.weight.........................0 MB
+  final.bias...........................0 MB
+
+Total layer weight gradient usage....127 MB
+  mf_user_embed.weight grad...........35 MB
+  mf_item_embed.weight grad............7 MB
+  mlp_user_embed.weight grad..........71 MB
+  mlp_item_embed.weight grad..........14 MB
+  mlp.0.weight grad....................0 MB
+  mlp.0.bias grad......................0 MB
+  mlp.1.weight grad....................0 MB
+  mlp.1.bias grad......................0 MB
+  mlp.2.weight grad....................0 MB
+  mlp.2.bias grad......................0 MB
+  final.weight grad....................0 MB
+  final.bias grad......................0 MB
+Intermediate gradients................34 MB
+\end{verbatim}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
