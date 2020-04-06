@@ -63,7 +63,7 @@
 \begin{center}
 \section*{ABSTRACT}
 \end{center}
-Machine learning is developing at an unprecedented pace, with applications to everything from self driving cars to medical imaging. Neural networks are the backbone of many of these machine learning implementations due to their inherent ability to learn from input data. Creating an effective machine learning model requires substantial training, which is typically done on Graphics Processing Units (GPUs). Training performance can be improved by loading large amounts of input data onto the GPU concurrently, which requires a large memory footprint. By developing tools to understand how a model is using GPU memory, researchers can gain insight into how to optimize their algorithms to work better on their hardware. This paper presents a novel memory profiler for PyTorch, a popular new machine learning framework. This new profiler's design is a departure from existing profilers, which were designed for frameworks with static computational graphs. The  profiler is an easy-to-use, flexible, low-overhead, and effective solution which decomposes the memory consumption into feature maps, weights, and gradients. It also presents detailed layer-by-layer metrics for further insight into how a model uses memory. The profiler requires minimal setup and can be integrated with existing PyTorch programs using only a few lines of code. Experiments were conducted on existing models such as Neural Collaborative Filtering and ResNet-50, and show the profiler's ability to correctly measure their memory consumption.
+Machine learning is developing at an unprecedented pace, with applications to everything from self driving cars to medical imaging. Neural networks are the backbone of many of these machine learning implementations due to their inherent ability to learn from input data. Creating an effective machine learning model requires substantial training, which is typically done on Graphics Processing Units (GPUs). Training performance can be improved by loading large amounts of input data onto the GPU concurrently, which requires a large memory footprint. By developing tools to understand how a model is using GPU memory, researchers can gain insight into how to optimize their algorithms to work better on their hardware. This paper presents a novel memory profiler for PyTorch, a popular new machine learning framework. This new profiler's design is a departure from existing profilers, which were designed for frameworks with static computational graphs. The  profiler is an easy-to-use, flexible, low-overhead, and effective solution which decomposes the memory consumption into feature maps, weights, and gradients. It also presents detailed layer-by-layer metrics for further insight into how a model uses memory. The profiler requires minimal setup and can be integrated with existing PyTorch programs using only a few lines of code. Experiments were conducted on existing models such as Neural Collaborative Filtering and ResNet-50, and show the profiler's ability to correctly measure their memory consumptions.
 \end{singlespace}
 \vspace*{\fill}
 \newpage 
@@ -597,8 +597,7 @@ Number of dataloader workers  & 0 \\
 \label{table:ncf_hyperparameters}
 \end{table}
 
-Figure \ref{fig:recommendation_bar_graph} shows the memory usage of the feature maps, layer weights, and layer gradients for different mini-batch sizes. Feature maps consume the majority of the GPU memory, which is especially evident as the mini-batch size increases. The memory usage of layer weights and the gradients of these layer weights are not dependent on the mini-batch size. Table \ref{table:ncf_full_breakdown} shows a more detailed memory breakdown. The intermediate gradients listed in the last row are tensors which were seen by the profiler's hooks during the backward pass, but whose memory was not attributable to the named layer weight gradients. The memory consumed by these intermediate tensors did increase with mini-batch size.
-\\\\
+Figure \ref{fig:recommendation_bar_graph} shows the memory usages of the feature maps, layer weights, and layer weight gradients for different mini-batch sizes. Feature maps consume the majority of the GPU memory, which is especially evident as the mini-batch size increases. The memory usage of layer weights and the gradients of these layer weights are not dependent on the mini-batch size. Values were recorded once the training memory usage remained constant.
 \begin{figure}[H]
 \centering
 \includegraphics[width=1.0\textwidth]{recommendation_bar_graphs.PNG}
@@ -607,6 +606,7 @@ Figure \ref{fig:recommendation_bar_graph} shows the memory usage of the feature 
 \label{fig:recommendation_bar_graph}
 \end{figure}
 
+ Table \ref{table:ncf_full_breakdown} shows a more detailed memory breakdown. The intermediate gradients listed in the last row are tensors which were seen by the profiler's hooks during the backward pass, but whose memory was not attributable to the named layer weight gradients. The memory consumed by these intermediate tensors did increase with mini-batch size. Values were recorded once the training memory usage remained constant.
 
 \begin{table}[H]
 \centering
@@ -672,7 +672,7 @@ Number of dataloader workers  & 4  \\
 \label{table:resnet_hyperparameters}
 \end{table}
 
-Figure \ref{fig:resnet_bar_graph} shows the memory usage of the feature maps, layer weights, and layer gradients for different mini-batch sizes. As was the case with the NCF model, again the feature maps consume the majority of the GPU memory. Given the large number of layers, a full layer-by-layer memory breakdown is presented in Appendix \ref{appendix:resnet_50_full_breakdown}.
+Figure \ref{fig:resnet_bar_graph} shows the memory usage of the feature maps, layer weights, and layer weight gradients for different mini-batch sizes. As was the case with the NCF model, again the feature maps consume the majority of the GPU memory. Given the large number of layers, a full layer-by-layer memory breakdown is presented in Appendix \ref{appendix:resnet_50_full_breakdown}.  Values were recorded once the training memory usage remained constant.
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.9\textwidth]{resnet_bar_graphs.PNG}
@@ -709,7 +709,7 @@ In this paper, a novel memory profiling tool for PyTorch was proposed. Given the
 %%%%%% APPENDIX: Resnet 50
 \section{Detailed ResNet-50 Memory Statistics}
 \label{appendix:resnet_50_full_breakdown}
-In this section the layer-by-layer PyTorch memory breakdown of ResNet-50 training for a batch size of 32 is presented. Training was done using system specs listed in Table \ref{table:system_specs}. All values are rounded to the nearest MB and were taken directly from the profiler's csv output. In the interest of space, only non-zero values are shown.
+In this section the layer-by-layer PyTorch memory breakdown of ResNet-50 training for a batch size of 32 is presented. Training was done using system specs listed in Table \ref{table:system_specs}. All values are rounded to the nearest MB and were taken directly from the profiler's csv output after the memory usages remained constant. In the interest of space, only non-zero values are shown.
 \begin{longtable}{@{}ll@{}}
 \toprule
 \textbf{peak cached}                              & \textbf{5475} \\ \midrule
