@@ -102,7 +102,7 @@ To profile memory with PyTorch, the fastest-growing machine learning framework t
 \newpage
 
 %%%%%%%%% BACKGROUND 
-\section{Computational Machine Learning and Existing Profilers}
+\section{Background in Computational Machine Learning}
 %%%%%%%%% BACKGROUND::Neural Networks
 \cvprsubsection{Neural Networks}
 While there are many types of artificial neural networks, they all involve the transformation of some input data (for example the pixels of an image) into meaningful output - in fact, a neural network is nothing more than a composition of mathematical functions. The function modeled by a neural network is special, however, because it can model \textit{any} mathematical function with arbitrary accuracy (provided that the network has at least two layers) \cite{dnn_history}. It is because of this property that neural networks have been labeled \enquote*{universal approximators}. Loosely, this means that if there are useful patterns in the world - whether they correspond to user preferences in movies based on past movies they have watched, or classification of images based on their pixel composition, or even cardiac arrest likelihood based on heart rate - a sufficiently-trained neural network can identify it. The effectiveness of a neural network in identifying these patterns depends primarily on two things: the amount of data it has been trained with, and its specific topology.
@@ -216,7 +216,7 @@ Thus, the picture so far is that a user defines their network and training/infer
 For the purposes of this paper, one CUDA function is of particular importance: \texttt{cudaMalloc()}. This function allows the framework to request any number of bytes in memory on the device\footnote{Typically, \textit{device} refers to the GPU and \textit{host} refers to the CPU}. Each call to \texttt{cudaMalloc()} will return a pointer to where the requested memory lies; if space for a tensor was requested, then this pointer might be used for the remainder of the program to access and modify this tensor. However, it is ultimately up to the framework to manage its memory, and different frameworks have different strategies. 
 \par 
 
-The MXNet memory profiler's main challenge is linking symbol names to specific \texttt{cudaMalloc()} calls. This linkage allows the profiler to establish how much memory was needed for which part of the computational graph, and therefore can determine the memory breakdown of the models' weights, feature maps, and gradients. However, there is no direct way to do this in the existing MXNet codebase, and thus it was modified to make these connections. Function signatures were changed so that the strings representing symbol names could be passed down to the underlying allocations. A C++ helper class was created to output entries into a log file with information about the memory breakdown. The log file can then be parsed with provided scripts to create visualizations of the results.
+The MXNet memory profiler's main challenge is linking symbol names to specific \texttt{cudaMalloc()} calls. This linkage allows the profiler to establish how much memory was needed for each part of the computational graph, and therefore can determine the memory breakdown of the models' weights, feature maps, and gradients. However, there is no direct way to do this in the existing MXNet codebase, and thus it was modified to make these connections. Function signatures were changed so that the strings representing symbol names could be passed down to the underlying allocations. A C++ helper class was created to output entries into a log file with information about the memory breakdown. The log file can then be parsed with provided scripts to create visualizations of the results.
 \par 
 
 \begin{figure}[ht]
@@ -226,17 +226,11 @@ The MXNet memory profiler's main challenge is linking symbol names to specific \
 \caption{MXNet GPU memory profiler system design \cite{mxnet_profiler}}
 \label{fig:mxnet_design}
 \end{figure}
-\newpage
 
-%%%%%%%%% METHODS
-\section{Designing a PyTorch Memory Profiler}
-\label{progress_to_date}
-Unlike the frameworks for which these memory profilers were created, PyTorch uses completely different memory management and computational graph strategies. In order to create a memory profiler for PyTorch, these differences must be investigated and thoroughly understood. This involves investigating both its front end (Python\footnote{While PyTorch does have a C++ front end as well, it is generally less user-friendly and not used as often}) and back end (C++) code implementations. This section discusses the internals of PyTorch and how the memory profiler was created.
-
-%%%%%%%%% METHODS::Memory Caching
-\cvprsubsection{Memory Caching}
+%%%%%%%%% BACKGROUND::Memory Caching
+\cvprsubsection{Memory Caching in PyTorch}
 \label{sec:memory_caching}
-The first difference - and perhaps most important one in the context of this paper - is how PyTorch handles its device memory. Unlike other frameworks, PyTorch uses \textit{caching} as its primary memory management strategy. The reason for this lies in the fact that PyTorch does not create a static computational graph with pre-allocated room for variables and tensors. This new paradigm, which is discussed in section \ref{dynamic_computational_graphs_and_autograd}, is known as \textit{dynamic computational graphs}. For now it suffices to say that PyTorch does not know how the forward and backward pass will be executed until runtime, i.e. until training or inference begins. Caching is best explained by the creators of PyTorch \cite{pytorch_paper}:
+There are many underlying differences between PyTorch and the frameworks for which these existing memory profilers were created. The first difference - and perhaps most important one in the context of this paper - is how PyTorch handles its device memory. Unlike other frameworks, PyTorch uses \textit{caching} as its primary memory management strategy. The reason for this lies in the fact that PyTorch does not create a static computational graph with pre-allocated room for variables and tensors. This new paradigm, which is discussed in section \ref{dynamic_computational_graphs_and_autograd}, is known as \textit{dynamic computational graphs}. For now it suffices to say that PyTorch does not know how the forward and backward pass will be executed until runtime, i.e. until training or inference begins. Caching is best explained by the creators of PyTorch \cite{pytorch_paper}:
 
 \begin{quote}
 \enquote{
@@ -264,7 +258,7 @@ By gradually increasing the cache size as the program progresses, the majority o
  
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
-%     METHODS ::Tensors in PyTorch
+%     BACKGROUND ::Tensors in PyTorch
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -287,24 +281,22 @@ Y =
     3  &  4      
 \end{bmatrix} 
 \]
-Both $X$ and $Y$ contain the integers from 1 to 4; however, they each provide different logical representations of the data. This information is captured by the stride of a tensor, which are offsets to map element indices into specific memory addresses. Storages don't understand the data they encapsulate, it is up to the tensors to provide the interpretation. The reference counters explained in section \ref{sec:memory_caching} are in fact handled by storage objects. When no tensors point to a certain storage anymore, the memory occupied by the storage is release to the cache.  
-\par 
-
-Given that this paper is concerned with the memory usage of PyTorch, two questions must be answered:
+Both $X$ and $Y$ contain the integers from 1 to 4; however, they each provide different logical representations of the data. This information is captured by the stride of a tensor, which are offsets to map element indices into specific memory addresses. Storages do not understand the data they encapsulate, it is up to the tensors to provide the interpretation. The reference counters explained in section \ref{sec:memory_caching} are in fact handled by storage objects. When no tensors point to a certain storage anymore, the memory occupied by the storage is release to the cache. Given that this paper is concerned with the memory breakdown of PyTorch, two questions arise:
 \begin{enumerate}[label=(\roman*)]
   \item How can a tensor's link to underlying device memory be ascertained, and how can a memory profiler safely handle two or more tensors which point to the same underlying storage?
   \item Given (i), how can this link be translated into a specific size in bytes, and how can a memory profiler take into account PyTorch's unique caching memory management strategy, where CUDA memory allocations are no longer directly tied to a specific object within the framework?
 \end{enumerate}
 
+These questions are answered in later sections, where the proposed PyTorch memory profiler is described.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
-%     METHODS::Models in PyTorch
+%     BACKGROUND::Models in PyTorch
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \cvprsubsection{Models in PyTorch}
 \label{sec:models_in_pytorch}
-Tensors can only get a user so far. Ultimately, machine learning researchers need an interface to codify their machine learning models, which can then be trained and used. The main interface used to do this in PyTorch is the \texttt{nn.Module} class. For example, Listing \ref{listing:nn.module_example} defines a simple two-layer network:
+Tensors can only get a user so far. Ultimately, researchers need an interface to codify their machine learning models, which can then be trained and used. The main interface used to do this in PyTorch is the \texttt{nn.Module} class. For example, Listing \ref{listing:nn.module_example} defines a simple two-layer network:
 \begin{lstlisting}[language=Python, caption={Definition of a simple two-layer neural network from the PyTorch documentation \cite{pytorch_tutorial}}, label={listing:nn.module_example}]
 class TwoLayerNet(torch.nn.Module):
     def __init__(self, D_in, H, D_out):
@@ -321,6 +313,7 @@ Here, a network called \texttt{TwoLayerNet} is being defined. Notice how it inhe
 \par 
 
 One interesting feature of the \texttt{\_\_init\_\_()} method is that all \textit{learnable} layers of the network - i.e. ones that must be trained, which must have their gradients computed - are automatically registered and saved to the model's list of \texttt{parameters}. Using the \texttt{torch.nn.Linear} API handles this by default, but if one were to define a learnable tensor within a model themselves, they would have to wrap them with \texttt{torch.nn.Parameter}. For example, observe the following two tensor definitions in Listing \ref{listing:tensors_correct_incorrect_state_dict}: 
+
 \begin{lstlisting}[language=Python, caption={Example of how to create a tensor which will be saved in the \texttt{state\_dict} of a model}, label={listing:tensors_correct_incorrect_state_dict}]
 import torch
 class MyNetwork(torch.nn.Module):
@@ -345,7 +338,7 @@ This convenient saving of layer names has many similarities to the one previousl
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
-%     METHODS::Dynamic Computational Graphs and Autograd
+%     BACKGROUND::Dynamic Computational Graphs and Autograd
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -357,12 +350,36 @@ The network definition in Listing \ref{listing:nn.module_example} has one other 
 PyTorch uses \textbf{automatic differentiation} \cite{automatic_differentiation}, implemented within the \texttt{torch.autograd} package, to take care of this problem. Distinct from other algorithmic methods such as symbolic and numerical differentiation, automatic differentiation is founded on the observation that any arbitrary computer program can be decomposed into arithmetic operations ($+,-,*,\div$) and elementary functions ($log, sine, cosine, exp,$ etc.). Recursively applying the chain rule allows the program to calculate derivatives (subject of course to floating point precision errors) using only an order of $O(n)$ extra computation. In practice, the linear factor is typically small in magnitude, leading to only a small decrease in performance.
 \par 
 
-During each iteration, PyTorch will gradually create a computational graph \textit{dynamically} as the program executes - this is a large departure from other frameworks, such as MXNet, which create a \textit{static} graph at the start of the program. When PyTorch starts the backward pass with a $.backward()$ call, the graph will be walked back and gradients will be calculated. Returning to Figure \ref{fig:computational_graph}, the gradient of the output node $e$ with respect to the input node $b$ could not be calculated directly; because of the nature of the chain rule, the gradients of \textit{intermediate} nodes were required for the calculation. These occupy space in memory and must not be neglected. Notice also that derivatives with respect to $a$ were \textit{not} calculated; for this reason, it cannot be assumed that every node will participate in PyTorch's backward pass procedure. In fact, if the gradient of $a$ with respect to the output $e$ were not required, and there were other intermediate nodes in the graph which were not needed for computing the gradient of $e$, these nodes would not have their gradients calculated either. Thus, it cannot be assumed that every tensor involved in a PyTorch computational graph will necessarily have its gradients computed and stored in memory. More generally, if a tensor has \texttt{requires\_grad=True}, then PyTorch must calculate gradients for it. The exact behaviour is outlined in the PyTorch documentation \cite{pytorch_doc_leaf_requires_grad}. 
+During each iteration, PyTorch will gradually create a computational graph \textit{dynamically} as the program executes - this is a large departure from other frameworks, such as MXNet, which generally create a \textit{static} graph at the start of the program. When PyTorch starts the backward pass with a $.backward()$ call, the graph will be walked back and gradients will be calculated. Returning to Figure \ref{fig:computational_graph}, the gradient of the output node $e$ with respect to the input node $b$ could not be calculated directly; because of the nature of the chain rule, the gradients of \textit{intermediate} nodes were required for the calculation. These occupy space in memory and must not be neglected. Notice also that derivatives with respect to $a$ were \textit{not} calculated; for this reason, it cannot be assumed that every node will participate in PyTorch's backward pass procedure. In fact, if the gradient of $a$ with respect to the output $e$ were not required, and there were other intermediate nodes in the graph which were not needed for computing the gradient of $e$, these nodes would not have their gradients calculated either. Thus, it cannot be assumed that every tensor involved in a PyTorch computational graph will necessarily have its gradients computed and stored in memory. More generally, if a tensor has \texttt{requires\_grad=True}, then PyTorch must calculate gradients for it. The exact behaviour is outlined in the PyTorch documentation \cite{pytorch_doc_leaf_requires_grad}. 
+\par 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%     METHODS
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+\section{PyTorch Memory Profiler}
+This section describes the design and usage of the proposed PyTorch memory profiler. The profiler program is available for use on GitHub \footnote{\href{https://github.com/izaakniksan/engsci\_thesis/tree/master/pytorch\_mem\_profiler}{https://github.com/izaakniksan/engsci\_thesis/tree/master/pytorch\_mem\_profiler}}, with detailed setup and usage instructions.
+\cvprsubsection{Designing the Profiler}
+In the face of all the internal complexities that have been outlined thus far, it should be clear that new mechanisms must be created to profile PyTorch's device memory usage. A proposed strategy to attain a layer-by-layer breakdown into weights, feature maps, and gradients is developed here using knowledge and methods that have been developed in previous sections. It is noted that this strategy departs from the strategies used with existing profilers in that it only uses the front end Python API available in PyTorch. This means that the profiler is more resilient to future changes in the underlying C++ PyTorch codebase. Given the particularly fast-changing nature of PyTorch, with several recent large-scale design changes such as the variable-tensor merger \cite{pytorch_variable_tensor_merger}, having a less intrusive profiler that does not have to be re-coded every update is a significant benefit. 
 \par 
 
-%%%%%%%%% METHODS::Feature Maps, Gradients, and Hooks
-\cvprsubsection{Feature Maps, Gradients, and Hooks}
-Feature maps are the scalar outputs of neurons, and gradients are the derivatives necessary for backpropagation. To create a memory profiler, the tensors which represent these data structures must be properly accounted for. During the forward pass of training, feature maps are gradually computed and stored. Then, during the backward pass, gradients are computed using these feature maps. Immediately after the backward pass, all of these intermediate tensors are no longer needed, and are cleared. At this point, only the gradients of \textbf{leaf tensors} \cite{pytorch_doc_leaf_requires_grad} of the computational graph - i.e. the ones ones which must be improved during the iteration - are kept in memory. These gradients can then be used by an optimizer (e.g. Adam) to take a step in the direction which reduces the loss function of the network.
+First, let us return to the two questions posed in section \ref{sec:tensors_in_pytorch}. Question (i) requires linking tensors to their device memory. To solve this, there is a fundamental structure in PyTorch known as a \textbf{DataPtr}. Defined in \texttt{c10/core/Allocator.h} in the source code, these structures are described as follows:
+\begin{quote}
+\enquote{
+A DataPtr is a unique pointer (with an attached deleter and some context for the deleter) to some memory, which also records what device is for its data.}
+\end{quote}
+The DataPtr of a tensor is saved in the \texttt{storage} object that the tensor points to, and can be accessed by calling \texttt{tensor.storage().data\_ptr()}. This also provides a way to determine if two tensors with different names actually share the same underlying memory, and thus should not be counted twice when diagnostics are reported. A hash table which maps unique DataPtrs to the model's layers (i.e. tensors) is used by the profiler to hold relevant information about naming and memory usage. These DataPtrs are also used to keep track of gradient and feature map tensors. It is important that the memory profiler \textbf{does not store a direct reference to the tensor itself}, since this would prevent the reference counting system from freeing it as expected, and thus increase the memory usage of the program. 
+\par 
+
+Question (ii) involves measuring the amount of memory used by a tensor. Unfortunately there is no direct way to do this, but a convenient calculation can be used instead. This calculation requires multiplying the number of elements by the size per element of a tensor. These values are spread out between the tensor and storage objects, and the total memory can be computed as follows:
+\begin{lstlisting}[language=Python]
+total_memory = tensor.storage().size() * tensor.element_size()
+\end{lstlisting}
+This calculation is used by the profiler to calculate how much memory a given tensor is using at a specific time during execution. It is noted that, as mentioned in section \ref{sec:memory_caching}, allocations are rounded to 512 bytes and this must be taken into account by the profiler.
+\par 
+
+Feature maps are the scalar outputs of neurons, and gradients are the derivatives necessary for backpropagation. To create a memory profiler, the tensors which represent these data structures must be properly accounted for. During the forward pass of training, feature maps are gradually computed and stored in tensors. Then, during the backward pass, gradients are computed using these feature maps. Immediately after the backward pass, all of these intermediate tensors are no longer needed, and are cleared. At this point, only the gradients of \textbf{leaf tensors} \cite{pytorch_doc_leaf_requires_grad} of the computational graph - i.e. the ones ones which must be improved during the iteration - are kept in memory. These gradients can then be used by an optimizer (e.g. Adam) to take a step in the direction which reduces the loss function of the network.
 \par 
 
 This complicated set of procedures - where the total allocated memory routinely fluctuates throughout training, and where tensor memory is not even linked directly to \texttt{cudaMalloc()} calls but rather is simply taken and returned to a global cache - provides new challenges not faced when tracking the memory of a static graph framework. Luckily, however, PyTorch provides some hidden tools which help shed light on the forward and backward pass: \textbf{hooks}.
@@ -371,27 +388,7 @@ This complicated set of procedures - where the total allocated memory routinely 
 There are several variants of hooks in PyTorch, but unfortunately they have very little documentation. Still, the insight they bring is valuable, despite the fact that most information about them is only found spread across the PyTorch forums \cite{pytorch_forum}. Hooks are \textit{functions} which can be registered on either a \texttt{nn.Module} or a \texttt{Tensor} object. The three methods used to register hooks are: \texttt{register\_hook()}, \texttt{register\_forward\_hook()}, and \texttt{register\_backward\_hook()}. Depending on the type of hook, during the backward or forward pass these functions are called. Hooks allow direct access to the intermediate feature maps and gradients at the time of their creation - exactly what is needed for a memory profiler.
 \par 
 
-%%%%%%%%% METHODS::Designing the Profiler
-\cvprsubsection{Designing the Profiler}
-In the face of all the internal complexities that have been outlined thus far, it should be clear that new mechanisms must be created to profile PyTorch's device memory usage. A proposed strategy to attain a layer-by-layer breakdown into weights, feature maps, and gradients is developed using knowledge and methods that have been developed in previous sections. It is noted that this strategy departs from the strategies used with existing profilers in that it only uses the front end Python API available in PyTorch. This means that the profiler is version-agnostic and thus future-proof. Given the particularly fast-changing nature of PyTorch, with several recent large-scale design changes such as the variable-tensor merger \cite{pytorch_variable_tensor_merger}, having a profiler that does not have to be re-coded each time a new update arrives is a significant benefit. 
-\par 
-
-First, let us return to the two questions posed in section \ref{sec:tensors_in_pytorch}. Question (i) requires linking tensors to their device memory. To solve this, there is a fundamental structure in PyTorch known as a \textbf{DataPtr}. Defined in \texttt{c10/core/Allocator.h} in the source code, these structures are described as follows:
-\begin{quote}
-\enquote{
-A DataPtr is a unique pointer (with an attached deleter and some context for the deleter) to some memory, which also records what device is for its data.}
-\end{quote}
-The DataPtr of a tensor is saved in the \texttt{storage} object that the tensor points to, and can be accessed by calling \texttt{tensor.storage().data\_ptr()}. This also provides a way to determine if two tensors with different names actually share the same underlying memory, and thus should not be counted twice by the profiler. A hash table which maps the layer naming of a tensor to its DataPtr can be used by the profiler to keep track of tensors. It is important that this hash table \textbf{does not store a direct reference to the tensor itself}, since this would prevent the reference counting system from freeing it as expected, and thus increase the memory usage of the program. 
-\par 
-
-Question (ii) involves measuring the amount of memory used by a tensor. Unfortunately there is no direct way to do this, but a convenient calculation can be used instead. This is can be done by multiplying the number of elements by the size per element of a tensor. This information is spread out between the tensor and storage objects and can be computed as follows:
-\begin{lstlisting}[language=Python]
-total_memory = tensor.storage().size() * tensor.element_size()
-\end{lstlisting}
-The calculated total memory size can then be saved by the profiler and used by its algorithm. It is noted that, as mentioned in section \ref{sec:memory_caching}, allocations are rounded to 512 bytes and this must be taken into account by the profiler.
-\par 
-
-\begin{figure}[ht]
+\begin{figure}[ht!]
 \centering
 \includegraphics[width=1.0\textwidth]{profiler_system_diagram.PNG}
 \captionsetup{width=0.9\linewidth}
@@ -399,16 +396,13 @@ The calculated total memory size can then be saved by the profiler and used by i
 \label{fig:profiler_system_diagram}
 \end{figure}
 
-Figure \ref{fig:profiler_system_diagram} shows a system diagram of the PyTorch memory profiler. Blue steps comprise the normal training workflow, and orange steps are the modifications to the flow done autonomously by the profiler. After the machine learning model has been has been instantiated by the training program, a \texttt{memory\_profiler} instance is created. This object contains all the functionality necessary for the memory usage to be profiled. When it is initialized, it will analyze the layers of the model and save their data pointers. The layer names are extracted as well, which provide meaningful descriptions of their use. \par 
+Figure \ref{fig:profiler_system_diagram} shows a system diagram of the PyTorch memory profiler. Blue steps comprise the normal training workflow, and orange steps are the modifications to the flow done autonomously by the profiler. After the model has been has been instantiated by the training program, a \texttt{memory\_profiler} instance is created. This object contains all the functionality necessary for the memory usage to be profiled. When it is initialized, it will analyze the layers of the model and save their data pointers in a hash table. The layer names are extracted as well, which provide meaningful descriptions of their use. \par 
 
-Next, the profiler registers forward and backward hooks. These allow the profiler to inspect feature maps and gradients, respectively. The Autograd engine accumulates values internally in C++ buffers, which are only exposed via these hooks. The hooks that are registered are specialized functions defined within the profiler to gather memory consumption metrics. Importantly, the data pointers of feature maps and gradients are also collected during runtime to ensure that no intermediate tensor is mistakenly counted twice by the memory profiler. \par 
+Next, the profiler registers forward and backward hooks. Since the PyTorch Autograd engine accumulates values necessary to walk back the computational graph (i.e. backpropagation) internally in C++ buffers, hooks provide otherwise-unavailable access to intermediate tensors. Hooks allow the profiler to inspect feature maps and gradients, respectively, as PyTorch creates them. The hooks that are used are specialized functions defined within the profiler to gather memory consumption metrics.
+Given that a PyTorch model may have many nested submodules, the profiler recursively registers hooks on all such submodules. %Without this step, intermediate tensors may be missed and not accounted for. When a hook function is called during execution, the profiler determines if it has encountered the input tensors before; if it hasn't, it will calculate the total memory usage of the tensors and their contributions to the relevant memory usage values. 
+\par 
 
-During the training algorithm, the forward and backward passes execute as normal. However, the hooks registered earlier are automatically run after every intermediate computation. The profiler keeps track of the memory usage by each part of the model, and reports relevant diagnostics. The cache is also monitored, and statistics about its peak size and its current size at the end of each iteration are reported. \par 
-\newpage
-%%%%%%%%% PROFILER GUIDE
-\section{Profiler Guide}
-\label{profiler_guide}
-This section walks through an example of how the PyTorch memory profiler is to be used. The profiler is available for use on GitHub \footnote{\href{https://github.com/izaakniksan/engsci\_thesis/tree/master/pytorch\_mem\_profiler}{https://github.com/izaakniksan/engsci\_thesis/tree/master/pytorch\_mem\_profiler}}, with detailed setup and usage instructions.
+During the training algorithm, the forward and backward passes execute as normal. However, the hooks registered earlier are automatically run after every intermediate computation. The profiler keeps track of the memory usage by each part of the model, and reports relevant diagnostics after each iteration. As the profiler inspects tensors, it continually stores their DataPtrs and maps them to their meaning; for example, if an input tensor to a forward hook function has never been inspected before, the profiler will understand that the tensor's purpose is a feature map, and will increase the feature map memory usage by the computed memory usage of that tensor. Given that DataPtrs are unique, this ensures that no intermediate tensor is mistakenly counted twice by the memory profiler. The cache is also monitored continually by the profiler, and statistics about its size are gathered and reported at the end of each iteration. \par 
 
 \cvprsubsection{Profiler Setup}
 The prerequisites to use the memory profiler are: 
@@ -434,7 +428,7 @@ There are only three steps (and only four lines of code) required to start using
 \item Call \texttt{.record\_stats()} after every iteration
 \item Call \texttt{.epoch\_end()} after every epoch
 \end{myitemize}
-The usage of the profiler will be demonstrated using the Neural Collaborative Filtering model as an example. Listing \ref{listing:ncf_model_init} shows an example from training code \cite{tbd_suite} which instantiates a model. On line 14, the model is sent to the GPU.
+The usage of the profiler will be demonstrated using the Neural Collaborative Filtering \cite{ncf} model as an example. Listing \ref{listing:ncf_model_init} shows an example from training code \cite{tbd_suite} which instantiates a model. On line 14, the model is sent to the GPU.
 \begin{lstlisting}[language=Python, caption={Initialization of an NCF model}, label={listing:ncf_model_init}]
 ...
 # Create model
